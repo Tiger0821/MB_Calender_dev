@@ -56,7 +56,7 @@ struct DayView: View {
             .frame(height: Self.header, alignment: .top)
 
             if rows.isEmpty {
-                Text("Nothing on the timetable.")
+                Text(Timetable.profile == nil ? "Open Timetable to set it up." : "Nothing on the timetable.")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

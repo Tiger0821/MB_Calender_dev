@@ -1,12 +1,13 @@
 import Foundation
 
 /* The TIMETABLE section of the userscript, in Swift. The rows in
-   TimetableData are the whole of 11B's fortnight; everything here cuts them
-   down to the classes actually taken and lays each day out the way the dock
-   does — parallel option blocks under one time, the holes between them named
-   Free, Break or Lunch, and any period before 16:05 with nothing of yours in
-   it shown as IB Core. The constants mirror TT_MINE, TT_SKIP, TT_CLUBS and
-   TT_ANCHOR there, so a change to one belongs in the other. */
+   TimetableData are the whole of each form's fortnight; everything here cuts
+   one form's down to the classes one person takes and lays each day out the
+   way the dock does — parallel option blocks under one time, the holes
+   between them named Free, Break or Lunch, and any period before 16:05 with
+   nothing of yours in it shown as IB Core. Where the userscript has its
+   classes written into it (TT_MINE, TT_CLUBS), here they come from the
+   Profile that setup fills in, so one build serves a whole year group. */
 
 /// One taught slot: a row of TimetableData that survived the cut.
 struct Lesson: Hashable, Sendable {
@@ -111,50 +112,72 @@ struct Snapshot: Sendable {
     }
 }
 
-enum Timetable {
-    /// The published Prime Timetable the rows were read from (TT_SOURCE).
-    static let source = URL(string: "https://primetimetable.com/publish/?id=3d9e5ee3-c15b-41f7-810c-0e16e6cafa92&rp=1&inc=1&time=6#id=3d9e5ee3-c15b-41f7-810c-0e16e6cafa92&view=1&classId=6e80eda3-3061-41f2-9b6e-7cff2454c3dd")!
-
-    /// The classes taken (TT_MINE). Edit this list if an option changes.
-    static let mine: Set<String> = [
-        "DP Chi A-2", "DP Chi A-2 SL Revision",   // Chinese A: Lang & Lit
-        "DP Eng B-2",                             // English B
-        "Eng Lit",                                // the school's own literature class
-        "DP MAI HL",                              // Mathematics AI HL
-        "DP Comp. Sc.",                           // Computer Science
-        "DP Econ",                                // Economics
-        "DP Bus Man",                             // Business Management
-        "DP TOK-1",                               // TOK group 1
-        "Guidance", "G: Agency [EE, CAS, CC]", "G: Weekly Alignment",
-        "Service Clubs", "Academic Clubs",
-    ]
-
-    /// Slots on the timetable that aren't attended (TT_SKIP). Chinese revision
-    /// is once a week: Week 1 Wednesday and Week 2 Thursday, not Week 1 Monday.
-    static let skip: [(subject: String, day: Int)] = [
-        ("DP Chi A-2 SL Revision", 0),
-    ]
-
-    /// The timetable only says "Service Clubs" and "Academic Clubs", so which
-    /// club is yours is filled in here (TT_CLUBS). `week` is 0 for Week 1
-    /// only, 1 for Week 2 only, nil for both.
-    struct Club {
+/* What a form is offered, sorted for setup to ask about. Two classes clash
+   when they are on at the same time on some day, and nobody takes both of a
+   pair that clash — which is all it takes to sort them: a class that clashes
+   with nothing is everyone's, and the rest fall into sets to choose within. */
+struct Catalog {
+    struct Choice: Identifiable, Hashable {
+        /// The name the timetable gives it.
         let subject: String
-        let week: Int?
-        let name: String
         let staff: String
-        let room: String
+        /// The other classes that are on while this one is.
+        let clashes: Set<String>
+
+        var id: String { subject }
+        /// "DP Chi A-2" is "Chi A-2". The TOK groups keep their numbers
+        /// here, since setup is where one is picked over the other.
+        var name: String {
+            let spelled = Timetable.spelled(subject)
+            return spelled.hasPrefix("DP ") ? String(spelled.dropFirst(3)) : spelled
+        }
     }
 
-    static let clubs: [Club] = [
-        Club(subject: "Service Clubs", week: 0, name: "台東服務隊", staff: "Claire Huang", room: "1F Library"),
-        Club(subject: "Service Clubs", week: 1, name: "Scout Club", staff: "Jun-Wei Lee", room: "1F"),
-        Club(subject: "Academic Clubs", week: nil, name: "Finance Club", staff: "", room: "2F"),
-    ]
+    /// Guidance and the clubs: on everyone's timetable, so never asked about.
+    let everyone: [String]
+    /// The sets to choose within, in the order they first come up in the week.
+    let sets: [[Choice]]
+    /// SL revision classes, under the class each one is for.
+    let revision: [String: [Choice]]
+
+    /// Every class that can be picked.
+    var choices: [Choice] { sets.flatMap { $0 } + revision.values.flatMap { $0 } }
+}
+
+enum Timetable {
+    // MARK: - Whose timetable
+
+    private struct State {
+        var profile: Profile?
+        var layout: (lessons: [Lesson], lines: [[Segment]])?
+    }
+
+    private static let lock = NSLock()
+    private static var state = State(profile: Profile.load())
+
+    /// Whose timetable is laid out: nil until setup has been done. Setting
+    /// it lays the fortnight out afresh.
+    static var profile: Profile? {
+        get { lock.withLock { state.profile } }
+        set { lock.withLock { if newValue != state.profile { state = State(profile: newValue) } } }
+    }
+
+    /// Read the saved profile again. The widgets do this before laying out a
+    /// timeline, since the app may have changed it since they last looked.
+    static func reload() {
+        profile = Profile.load()
+    }
+
+    /// The form's own page on the published Prime Timetable (TT_SOURCE).
+    static var source: URL {
+        let form = TimetableData.forms.first { $0.name == profile?.form } ?? TimetableData.forms[0]
+        let id = TimetableData.publication
+        return URL(string: "https://primetimetable.com/publish/?id=\(id)&rp=1&inc=1&time=6#id=\(id)&view=1&classId=\(form.id)")!
+    }
 
     static let core = "IB Core"
     static let schoolEnd = minutes("16:05")
-    /// The standard bells, for an hour nobody in 11B is timetabled in.
+    /// The standard bells, for an hour nobody in the form is timetabled in.
     static let bells = ["08:35-09:25", "09:25-10:10", "10:20-11:05", "11:05-11:50",
                         "12:50-13:40", "13:40-14:25", "14:35-15:20", "15:20-16:05"]
     static let lunch = (start: 11 * 60 + 50, end: 12 * 60 + 50)
@@ -190,13 +213,18 @@ enum Timetable {
         return String(format: "%02d:%02d:%02d", c.hour ?? 0, c.minute ?? 0, c.second ?? 0)
     }
 
+    /// The timetable has "DP ESS SL Rrevision"; it is shown spelled right.
+    static func spelled(_ subject: String) -> String {
+        subject.replacingOccurrences(of: "Rrevision", with: "Revision")
+    }
+
     /// The DP prefix comes off, and TOK loses its group number; every other
     /// trailing "-N" stays, so Eng B-2 is still Eng B-2 (ttName). The one
     /// departure from the userscript: the timetable's "G: Agency [EE, CAS, CC]"
     /// block is shown as Guidance, here and in every widget.
     static func displayName(_ subject: String) -> String {
         if subject.hasPrefix("G: Agency") { return "Guidance" }
-        var s = subject
+        var s = spelled(subject)
         if s.hasPrefix("DP ") { s = String(s.dropFirst(3)).trimmingCharacters(in: .whitespaces) }
         if s.hasPrefix("TOK-"), s.dropFirst(4).allSatisfy(\.isNumber) { s = "TOK" }
         return s
@@ -204,10 +232,73 @@ enum Timetable {
 
     // MARK: - The fortnight
 
-    static let lessons: [Lesson] = build()
+    static var lessons: [Lesson] { layout().lessons }
 
     /// Each of the ten days laid out, gaps included.
-    static let lines: [[Segment]] = (0..<10).map(line)
+    static var lines: [[Segment]] { layout().lines }
+
+    /// Laid out once for each profile and kept until it changes.
+    private static func layout() -> (lessons: [Lesson], lines: [[Segment]]) {
+        lock.withLock {
+            if let layout = state.layout { return layout }
+            let lessons = build(for: state.profile)
+            let layout = (lessons: lessons, lines: (0..<10).map { line($0, of: lessons) })
+            state.layout = layout
+            return layout
+        }
+    }
+
+    /// Every lesson a form is offered, before anything is picked from it.
+    static func offered(to form: String) -> [Lesson] {
+        (TimetableData.rows[form] ?? "").split(separator: "\n").map(parse)
+    }
+
+    static func catalog(for form: String) -> Catalog {
+        catalogs[form] ?? Catalog(everyone: [], sets: [], revision: [:])
+    }
+
+    private static let catalogs = Dictionary(uniqueKeysWithValues: TimetableData.forms.map { ($0.name, sort(offered(to: $0.name))) })
+
+    private static func sort(_ lessons: [Lesson]) -> Catalog {
+        let slots = Dictionary(grouping: lessons, by: \.subject)
+        func clash(_ a: String, _ b: String) -> Bool {
+            slots[a]!.contains { x in slots[b]!.contains { y in x.day == y.day && x.start < y.end && y.start < x.end } }
+        }
+        func first(_ subject: String) -> (Int, Int) {
+            slots[subject]!.map { ($0.day, $0.start) }.min { $0 < $1 }!
+        }
+        func choice(_ subject: String, against others: [String]) -> Catalog.Choice {
+            Catalog.Choice(subject: subject, staff: slots[subject]![0].staff.joined(separator: ", "),
+                           clashes: Set(others.filter { $0 != subject && clash(subject, $0) }))
+        }
+
+        // revision classes are extras; they are asked about after the class they are for
+        let revision = slots.keys.filter { $0.localizedCaseInsensitiveContains("evision") }.sorted()
+        let main = slots.keys.filter { !revision.contains($0) }.sorted { first($0) < first($1) }
+        let choices = main.map { choice($0, against: main) }
+
+        var sets: [[Catalog.Choice]] = []
+        var placed: Set<String> = []
+        for start in choices where !start.clashes.isEmpty && !placed.contains(start.subject) {
+            // everything reachable from one class through clashes is one set
+            var members: Set<String> = []
+            var frontier = [start.subject]
+            while let next = frontier.popLast() {
+                guard members.insert(next).inserted else { continue }
+                frontier += choices.first { $0.subject == next }!.clashes.subtracting(members)
+            }
+            placed.formUnion(members)
+            sets.append(choices.filter { members.contains($0.subject) }.sorted { $0.subject < $1.subject })
+        }
+
+        var under: [String: [Catalog.Choice]] = [:]
+        for extra in revision {
+            // "DP Chi A-2 SL Revision" is for "DP Chi A-2": the longest class name it starts with
+            guard let parent = main.filter({ extra.hasPrefix($0) }).max(by: { $0.count < $1.count }) else { continue }
+            under[parent, default: []].append(choice(extra, against: []))
+        }
+        return Catalog(everyone: choices.filter { $0.clashes.isEmpty }.map(\.subject), sets: sets, revision: under)
+    }
 
     private static func parse(_ row: Substring) -> Lesson {
         let f = row.split(separator: "~", omittingEmptySubsequences: false).map(String.init)
@@ -218,23 +309,29 @@ enum Timetable {
                       staff: list(4), rooms: list(5))
     }
 
-    private static func build() -> [Lesson] {
-        let rows = TimetableData.raw.split(separator: "\n").map(parse)
+    /// One person's lessons: the classes they picked and everyone's, with
+    /// their clubs named. Nothing until there is a profile.
+    private static func build(for profile: Profile?) -> [Lesson] {
+        guard let profile else { return [] }
+        let rows = offered(to: profile.form)
+        let mine = profile.subjects.union(catalog(for: profile.form).everyone)
 
-        var taught = rows.filter { row in
-            mine.contains(row.subject) && !skip.contains { $0.subject == row.subject && $0.day == row.day }
-        }
+        var taught = rows.filter { mine.contains($0.subject) }
         for i in taught.indices {
             let week = taught[i].day < 5 ? 0 : 1
-            if let club = clubs.first(where: { $0.subject == taught[i].subject && ($0.week == nil || $0.week == week) }) {
+            if let club = profile.clubs.first(where: { $0.subject == taught[i].subject && ($0.week == nil || $0.week == week) }) {
                 taught[i].subject = club.name
                 taught[i].staff = club.staff.isEmpty ? [] : [club.staff]
                 taught[i].rooms = club.room.isEmpty ? [] : [club.room]
+            } else if taught[i].staff.count > 3 {
+                // a slot shared by all the clubs lists every one's teacher and room, which says nothing about yours
+                taught[i].staff = []
+                taught[i].rooms = []
             }
         }
 
         /* Any period before 16:05 with none of your classes in it is IB Core.
-           The periods are the ones the whole of 11B is timetabled in that day,
+           The periods are the ones the whole form is timetabled in that day,
            so the rows keep to the real bells and the breaks stay breaks. */
         var periods = rows.map { (day: $0.day, start: $0.start, end: $0.end) }
         for d in 0..<10 {
@@ -260,7 +357,7 @@ enum Timetable {
 
     /// One cycle day, in order: parallel option blocks share a segment, and
     /// the stretches between classes become segments of their own (ttLine).
-    private static func line(_ day: Int) -> [Segment] {
+    private static func line(_ day: Int, of lessons: [Lesson]) -> [Segment] {
         let list = lessons.filter { $0.day == day }.sorted {
             $0.start != $1.start ? $0.start < $1.start : $0.subject.localizedCompare($1.subject) == .orderedAscending
         }

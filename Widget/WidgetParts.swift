@@ -3,6 +3,12 @@ import WidgetKit
 
 /* Pieces the widgets share. */
 
+extension Timetable {
+    /// What a widget says when there is no class to show: before setup, where
+    /// to go to do it.
+    static var nothingToShow: String { profile == nil ? "Open Timetable to set up" : "No classes" }
+}
+
 extension View {
     /// A widget's frame doesn't grow with its text, so the text is only
     /// allowed to grow so far with the phone's text-size setting. Past this
@@ -160,7 +166,7 @@ struct FocusBlock: View {
             VStack(alignment: .leading, spacing: 4) {
                 Image(systemName: "calendar")
                     .font(.title3)
-                Text("Nothing on the timetable")
+                Text(Timetable.profile == nil ? "Open Timetable to set it up" : "Nothing on the timetable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

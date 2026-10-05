@@ -3,16 +3,20 @@ import SwiftUI
 /* How each block looks, shared by the app and the widgets so a subject is the
    same colour everywhere. */
 extension Timetable {
+    /* Classes that are alternatives to each other share a colour, since
+       nobody has two of them; classes one person can have together don't. */
     static func tint(for subject: String) -> Color {
-        switch subject {
-        case let s where s.hasPrefix("DP Chi"): .red
-        case "DP Eng B-2": .blue
+        func any(_ prefixes: String...) -> Bool { prefixes.contains { subject.hasPrefix($0) } }
+        return switch subject {
+        case _ where any("DP Chi"): .red
+        case _ where any("DP Eng"): .blue
         case "Eng Lit": .indigo
-        case let s where s.hasPrefix("DP MA"): .orange
-        case "DP Comp. Sc.": .teal
-        case "DP Econ": .green
-        case "DP Bus Man": .mint
-        case let s where s.hasPrefix("DP TOK"): .purple
+        case _ where any("DP MA"): .orange
+        case _ where any("DP Comp. Sc.", "DP ESS"): .teal
+        case _ where any("DP Chem"): .cyan
+        case _ where any("DP Econ", "DP History", "DP Psych"): .green
+        case _ where any("DP Bus Man", "DP Bio", "DP Physics", "DP V. Arts"): .mint
+        case _ where any("DP TOK"): .purple
         case core: .gray
         case let s where s.hasPrefix("G:") || s == "Guidance": .brown
         default: .pink   // the clubs
