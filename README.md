@@ -92,3 +92,11 @@ about holidays: classes are still shown on a day off.
 
 The folders are synchronised groups, so a file dropped into one in Finder or
 Xcode is picked up by that folder's targets without editing the project.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+The timetable logic is a port of the TIMETABLE section of the
+[ManageBac Reimagined](https://github.com/Tiger0821/ManageBac-Reimagined)
+userscript, written by Arstoien and extended by Tiger0821.
