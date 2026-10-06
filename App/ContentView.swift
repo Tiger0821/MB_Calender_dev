@@ -20,7 +20,11 @@ enum Box: String, CaseIterable {
    picked day underneath. It follows the clock until a day is picked by hand;
    Today brings it back. The four boxes can be put in any order — touch and
    hold one to move it — and the order is kept. Behind it all is the sky as it
-   is outside, when the weather is known. */
+   is outside, when the weather is known.
+
+   Nothing else is on the page. The settings, and where everything comes
+   from, are a page of their own off the right-hand edge: a swipe in from
+   that edge, or the gear by the clock, slides it across. */
 struct ContentView: View {
     /// A cycle day (0-9) picked by hand; nil follows the clock.
     @State private var picked: Int?
@@ -38,6 +42,10 @@ struct ContentView: View {
     @State private var profile = Timetable.profile
     /// Setup again, to change the name, the form or the classes.
     @State private var editing = false
+    /// Whether the settings page is across the screen.
+    @State private var settingsOpen = false
+    /// While a finger is pulling it: how far across it is, 0 (away) to 1.
+    @State private var pull: CGFloat?
 
     private var boxOrder: Binding<[Box]> {
         Binding {
@@ -50,10 +58,42 @@ struct ContentView: View {
     var body: some View {
         Group {
             if let profile {
-                // the day's rows are laid out from the profile without being handed it,
-                // so a changed profile gets a page of its own rather than a stale one
-                page(for: profile)
-                    .id(profile)
+                GeometryReader { geo in
+                    let span = geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing
+                    let across = pull ?? (settingsOpen ? 1 : 0)
+                    ZStack {
+                        // the day's rows are laid out from the profile without being handed it,
+                        // so a changed profile gets a page of its own rather than a stale one
+                        page(for: profile)
+                            .id(profile)
+                            // it gives way as settings comes over it, a little, and dims
+                            .offset(x: -across * span * 0.3)
+                            .overlay {
+                                Color.black.opacity(0.35 * across)
+                                    .ignoresSafeArea()
+                                    .allowsHitTesting(false)
+                            }
+                            .allowsHitTesting(across == 0)
+                            .accessibilityHidden(settingsOpen)
+                            .gesture(EdgeSwipe(edge: .right) { state, distance, speed in
+                                pulled(state, fraction: -distance / span, speed: -speed, opening: true)
+                            })
+                        SettingsPanel(profile: profile) {
+                            editing = true
+                        } close: {
+                            withAnimation(.snappy(duration: 0.3)) { settingsOpen = false }
+                        }
+                        .offset(x: (1 - across) * span)
+                        .accessibilityHidden(!settingsOpen)
+                        .gesture(EdgeSwipe(edge: .left) { state, distance, speed in
+                            pulled(state, fraction: distance / span, speed: speed, opening: false)
+                        })
+                    }
+                }
+                // a knock as it opens, and a lighter one as it goes
+                .sensoryFeedback(trigger: settingsOpen) { _, open in
+                    open ? .impact(weight: .medium) : .impact(weight: .light)
+                }
             } else {
                 SetupView(existing: nil) { use($0) }
             }
@@ -68,6 +108,27 @@ struct ContentView: View {
         }
     }
 
+    /* A finger pulling the settings page in from the right edge, or pushing
+       it back from the left. `fraction` is how far across the screen it has
+       come and `speed` how fast, both in the direction of the swipe. The page
+       follows the finger; let go and it carries on if it was past a third of
+       the way or moving quickly, and goes back otherwise. */
+    private func pulled(_ state: UIGestureRecognizer.State, fraction: CGFloat, speed: CGFloat, opening: Bool) {
+        let fraction = min(1, max(0, fraction))
+        switch state {
+        case .began, .changed:
+            pull = opening ? fraction : 1 - fraction
+        case .ended:
+            let carriesOn = fraction > 0.35 || speed > 600
+            withAnimation(.snappy(duration: 0.3)) {
+                settingsOpen = opening ? carriesOn : !carriesOn
+                pull = nil
+            }
+        default:
+            withAnimation(.snappy(duration: 0.3)) { pull = nil }
+        }
+    }
+
     /// Take up a profile from setup: keep it, lay the fortnight out for it,
     /// and have the widgets do the same.
     private func use(_ new: Profile) {
@@ -78,6 +139,8 @@ struct ContentView: View {
             picked = nil
         }
         WidgetCenter.shared.reloadAllTimelines()
+        // a day already on the Lock Screen was laid out for the old profile
+        Task { await ClassActivityManager.refresh(reset: .everything) }
     }
 
     private func page(for profile: Profile) -> some View {
@@ -92,6 +155,21 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     DateHeader()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        // beside the clock, where the date above it has the full width
+                        .overlay(alignment: .bottomTrailing) {
+                            Button {
+                                withAnimation(.snappy(duration: 0.3)) { settingsOpen = true }
+                            } label: {
+                                Image(systemName: "gearshape")
+                                    .font(.body.weight(.medium))
+                                    .frame(width: 38, height: 38)
+                            }
+                            .buttonStyle(.plain)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                            .offset(y: 6)
+                            .accessibilityLabel("Settings")
+                        }
                     SkyStrip(profile: profile, weather: weather.current, isDay: phase != .night) {
                         editing = true
                     }
@@ -116,7 +194,6 @@ struct ContentView: View {
                             .glassEffect(.regular, in: .rect(cornerRadius: 28))
                         }
                     }
-                    Footer()
                 }
                 .padding(.horizontal)
                 .padding(.top, 12)
@@ -124,6 +201,8 @@ struct ContentView: View {
                 .coordinateSpace(.named("page"))
             }
             .scrollPosition($scrollPosition)
+            // keep the Lock Screen's day going: today's up, the next one booked
+            .task(id: now) { await ClassActivityManager.refresh() }
             .onScrollGeometryChange(for: ScrollExtent.self) { geometry in
                 let top = -geometry.contentInsets.top
                 return ScrollExtent(offset: geometry.contentOffset.y, top: top,
@@ -703,32 +782,6 @@ struct GapRow: View {
         .foregroundStyle(.secondary)
         .padding(.vertical, 6)
         .padding(.horizontal, 12)
-    }
-}
-
-struct Footer: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Link(destination: Timetable.source) {
-                Label("Prime Timetable", systemImage: "arrow.up.right.square")
-            }
-            Text("Read from the school's published timetable on \(TimetableData.readOn) (\(TimetableData.edition)). Week 2 is the week of Mon 7 Sep; the rest alternate.")
-            Text("Tap your name under the clock to change your form, your classes or your clubs.")
-            Text("Holidays are Taiwan's national holidays from the government office calendars for 2026 and 2027.")
-            Text("Touch and hold a box to move it; the others make room, and the order is kept. Hold it at the top or bottom of the screen to scroll.")
-            Text("Widgets: touch and hold the Home Screen or Lock Screen, tap Edit, then Add Widget, and search for Timetable.")
-            Link(destination: URL(string: "https://open-meteo.com/")!) {
-                Label("Weather data by Open-Meteo.com", systemImage: "arrow.up.right.square")
-            }
-            Text("The sky behind the page is the weather near where the phone is, looked up again every ten minutes.")
-        }
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // on glass, so it reads over any sky
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
-        .padding(.top, 8)
     }
 }
 
