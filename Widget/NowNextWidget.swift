@@ -99,7 +99,7 @@ struct RectangularView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text("No classes")
+            Text(Timetable.nothingToShow)
         }
     }
 }
@@ -146,7 +146,7 @@ struct InlineView: View {
             Label("\(next.segment.shortTitle) \(snapshot.isToday ? "at" : snapshot.dayLabel) \(Timetable.hhmm(next.segment.start))",
                   systemImage: "calendar")
         } else {
-            Label("No classes", systemImage: "calendar")
+            Label(Timetable.nothingToShow, systemImage: "calendar")
         }
     }
 }
