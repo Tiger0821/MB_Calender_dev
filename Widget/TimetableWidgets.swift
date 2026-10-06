@@ -7,5 +7,6 @@ struct TimetableWidgets: WidgetBundle {
         NowNextWidget()
         TodayWidget()
         HolidayWidget()
+        ClassLiveActivity()
     }
 }

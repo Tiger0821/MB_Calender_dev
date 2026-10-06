@@ -159,18 +159,36 @@ struct DayRow: View {
         .frame(height: height)
         .background {
             if isNow {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(segment.tint.opacity(0.18))
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if isNow {
-                BellBar(segment: item)
-                    .padding(.horizontal, 6)
-                    .offset(y: 2)
+                RowFill(item: item, height: height)
+                    .background(segment.tint.opacity(0.12))
+                    .clipShape(.rect(cornerRadius: 8))
             }
         }
         .opacity(item.end <= now ? 0.4 : 1)
+    }
+}
+
+/* The row of the block that is on, filling from left to right as the block
+   runs, the way the app's does. A widget can't redraw as time passes; what it
+   can show is a progress bar the system fills in — so this is one, made as
+   tall as the row and sat behind the text rather than under it, where a bar
+   of its own ran into the room number. */
+struct RowFill: View {
+    let item: TimedSegment
+    let height: CGFloat
+
+    var body: some View {
+        ProgressView(timerInterval: item.interval, countsDown: false) {
+            EmptyView()
+        } currentValueLabel: {
+            EmptyView()
+        }
+        .progressViewStyle(.linear)
+        .tint(item.segment.tint.opacity(0.36))
+        // a few points tall with round ends: stretched past the row both
+        // ways, what is left inside it has square corners and a straight edge
+        .scaleEffect(x: 1.05, y: height, anchor: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

@@ -207,6 +207,12 @@ enum Timetable {
         String(format: "%02d:%02d", minutes / 60, minutes % 60)
     }
 
+    /// The time of day as "08:10".
+    static func hhmm(_ date: Date) -> String {
+        let c = calendar.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+    }
+
     /// The time of day to the second, as "12:22:45".
     static func clock(_ date: Date) -> String {
         let c = calendar.dateComponents([.hour, .minute, .second], from: date)

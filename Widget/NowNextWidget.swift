@@ -151,26 +151,6 @@ struct InlineView: View {
     }
 }
 
-extension Segment {
-    /// Four letters or so, for the middle of a circular widget.
-    var abbreviation: String {
-        guard let subject = lessons.first?.subject else { return title }
-        switch subject {
-        case let s where s.hasPrefix("DP Chi"): return "Chi"
-        case "DP Eng B-2": return "EngB"
-        case "Eng Lit": return "Lit"
-        case let s where s.hasPrefix("DP MA"): return "Math"
-        case "DP Comp. Sc.": return "CS"
-        case "DP Econ": return "Econ"
-        case "DP Bus Man": return "BM"
-        case let s where s.hasPrefix("DP TOK"): return "TOK"
-        case Timetable.core: return "Core"
-        case let s where s.hasPrefix("G:") || s == "Guidance": return "G"
-        default: return "Club"
-        }
-    }
-}
-
 #Preview("Small", as: .systemSmall) {
     NowNextWidget()
 } timeline: {

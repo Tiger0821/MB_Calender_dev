@@ -58,6 +58,13 @@ under it, so a box can travel further than one screen. The order is remembered
 (`boxOrder` in the app's defaults). A swipe still scrolls the page and a tap
 still picks a day; only a held finger lifts a box.
 
+Nothing else is on the page. **Settings** is a page of its own off the
+right-hand edge: swipe in from that edge, or tap the gear beside the clock,
+and it slides across; swipe back from the left edge, or tap the arrow, and it
+goes. It has the Lock Screen switch, your form and classes, a way to put the
+boxes back as they came, and where the timetable, the holidays and the
+weather come from.
+
 ## Widgets
 
 - **Now & Next** — small, medium, and three Lock Screen sizes (inline,
@@ -65,7 +72,8 @@ still picks a day; only a held finger lifts a box.
   progress bar, and what's next. Before school, after it and at weekends it
   shows the first class of the next school day instead.
 - **Today** — large. The whole day as the dock lays it out: finished blocks
-  greyed back, the current one filled in with its countdown.
+  greyed back, and the current one filling from left to right across its row
+  as it runs, with its countdown.
 - **Holiday Countdown** — small, medium, and the three Lock Screen sizes. Days
   to the next national holiday, switching to a live hours:minutes:seconds
   countdown once it is under a day away. The medium size adds today's date and
@@ -79,6 +87,78 @@ account. Whose timetable to show they read from the profile setup saves, which
 the app and the widgets share through an app group; until setup has been done
 they say to open the app. Each widget lays out a timeline with an entry at every bell through
 the next two school days; the countdowns in between are drawn by the system.
+
+## On the Lock Screen
+
+Switch on **Show the day's classes** in Settings and the school day goes up
+as a Live Activity: on the Lock Screen, the class you're in, the time left in
+it, a bar filling as it runs down, and what's next; in the Dynamic Island,
+the class's name and the minutes left of it ("CS 14 min"). Before the first
+bell it shows the first class and, for the last two hours, counts down to it.
+It changes with every bell by itself.
+
+The island counts to the end of the class, so through a double period it is
+one countdown; the Lock Screen counts to the end of the period. In a short
+break the island names the class to come and the time it starts.
+
+On a paired Apple Watch the day shows in the Smart Stack as a strip — a block
+for each class in its colour, as wide as the class is long, with a bar under
+it that fills as the day goes by. (The phone's panels can't be used there:
+on the watch the masks that hide them hide nothing.)
+
+- **It goes up at 06:00** on school days (the time can be changed). The app
+  books the next school morning with the system each time it is opened, and
+  the system starts it at that time without the app running. Opening the app
+  once between school days keeps that going.
+- **Without opening the app at all:** the app offers Shortcuts a **Start
+  Classes** action. In Shortcuts: Automation › New › Time of Day › pick the
+  time and days › Run Immediately › Start Classes.
+- **How long it stays:** iOS takes a Live Activity out of the Dynamic Island
+  after 8 hours and off the Lock Screen after 12. One that goes up at 06:00 is
+  in the island until 14:00 and on the Lock Screen until 18:00.
+- **Swiping it away** clears it until the app is next opened. The switch is
+  how to turn it off.
+- With the screen dimmed, iOS shows a countdown's minutes and leaves the
+  seconds as dashes.
+
+### How it changes by itself
+
+A Live Activity can't be given a timeline the way a widget can: what it shows
+only changes when the app updates it or a server pushes to it, and during the
+school day there is neither. So the whole day goes in when it starts, and the
+view is every block's panel stacked up, each hidden behind a mask that the
+clock opens — a progress bar set to run out at the block's first second, which
+is one of the two things the system will animate by itself. `TimeSwitch` and
+`Curtain` in `Widget/ClassLiveActivity.swift` are that; the comments there say
+what it took to make it hold. The panels are nested, each behind the masks of
+all the ones before it, because a closed mask is not quite opaque and side by
+side sixteen of them let a ghost of the afternoon through.
+
+The limit to design within: the system saves a Live Activity's drawing to a
+file and silently shows nothing if it is over 2,000,000 bytes (1,953 KB), and
+what fills it is countdowns (about 40 KB each) and bars. iOS 27 saves the
+same drawing about an eighth larger than iOS 26, so it is the one to measure
+on. For 11B's ten days, measured on 6 Oct 2026:
+
+| | iOS 26.5 | iOS 27.0 |
+|---|---|---|
+| lightest day (13 blocks) | 1,223 KB | 1,436 KB |
+| fullest day (16 blocks) | 1,457 KB | 1,734 KB |
+
+A day of more than sixteen blocks drops the island's minutes for a ring that
+shows how far through the day it is, which is some 300 KB lighter
+(`affordsMinutes`). Anything added to the Live Activity should be weighed the
+same way before it is trusted: the saved file is the `.activity-archive` under
+the simulator's `Containers/Data/PluginKitPlugin/…/SystemData/com.apple.chrono/activities`.
+
+The minutes in the island are a countdown with its seconds clipped off
+(`MinutesLeft`). A text formatted to read "32 min" is not kept up to date in
+a Live Activity; a countdown is.
+
+To try it without waiting for a bell, run a debug build with `LIVE_TEST` set
+in the scheme's environment: a number starts a made-up day with blocks that
+many seconds long; `day` starts the next real school day now; `size:3` starts
+the day three days from now as it would be booked, to weigh it.
 
 ## Run it
 
@@ -190,14 +270,19 @@ The widgets do not show the weather and still use no network.
 - `Shared/` — the timetable and its styling; compiled into both targets.
   `TimetableData.swift` is the rows for each form, `Profile.swift` is whose
   timetable it is, and `Timetable.swift` lays one person's fortnight out.
+  `ClassActivity.swift` is a day as the Live Activity carries it.
 - `App/` — the app: date and clock, Now card, holiday card, the ten-day
   picker, the day's timetable. `SetupView.swift` is setup.
   `ReorderableStack.swift` is the hold-and-drag reordering, edge scrolling
   included. `Weather.swift` fetches the weather and `PixelSky.swift` paints
-  it.
+  it. `SettingsPanel.swift` is the settings page and the edge swipe that
+  brings it in. `ClassActivityManager.swift` starts and books the Live
+  Activity, `LockScreenSettings.swift` is its switch, and
+  `ClassActivityIntent.swift` is the Shortcuts action.
 - `Tools/` — `update_timetable.py`, which rebuilds the rows from the school's
   published timetable.
-- `Widget/` — the widget extension.
+- `Widget/` — the widget extension: the widgets, and in
+  `ClassLiveActivity.swift` the Live Activity's views.
 
 The folders are synchronised groups, so a file dropped into one in Finder or
 Xcode is picked up by that folder's targets without editing the project.
