@@ -103,12 +103,8 @@ break the island names the class to come and the time it starts.
 
 On a paired Apple Watch the day shows in the Smart Stack as a strip — a block
 for each class in its colour, as wide as the class is long, with a bar under
-it that fills as the day goes by, and beside the day the time left of it,
-counting down. Where the bar has got to is the class that is on. (The phone's
-panels can't be used there: on the watch the masks that hide them hide
-nothing, so the watch gets one layout that is true at every hour of the day
-and leaves the changing to the countdown and the bar, which the system runs
-by itself.)
+it that fills as the day goes by. (The phone's panels can't be used there:
+on the watch the masks that hide them hide nothing.)
 
 - **It goes up at 06:00** on school days (the time can be changed). The app
   books the next school morning with the system each time it is opened, and
@@ -154,13 +150,6 @@ shows how far through the day it is, which is some 300 KB lighter
 (`affordsMinutes`). Anything added to the Live Activity should be weighed the
 same way before it is trusted: the saved file is the `.activity-archive` under
 the simulator's `Containers/Data/PluginKitPlugin/…/SystemData/com.apple.chrono/activities`.
-
-Each presentation is saved to a file of its own, named `fam:` for the family
-it belongs to. The figures above are `fam:medium`, the phone's — the watch's
-strip is `fam:small` and is only written when a watch is paired, so what is
-spent on `DayStrip` is not spent out of the phone's allowance. The countdown
-in the strip's header was measured this way and leaves all nine school days
-of `fam:medium` byte for byte the size they were.
 
 The minutes in the island are a countdown with its seconds clipped off
 (`MinutesLeft`). A text formatted to read "32 min" is not kept up to date in
