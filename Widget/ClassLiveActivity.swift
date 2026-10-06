@@ -527,33 +527,35 @@ struct AfterPanel: View {
 struct DayStrip: View {
     let day: ClassActivityAttributes
 
+    /* The strip's three rows and the gaps between them. The bar's height is
+       forced rather than left to the system: `.linear` is laid out taller on
+       the watch than on the phone, and a row taller than it was budgeted for
+       pushed the whole stack past the height set below — a GeometryReader
+       does not clip, so the bar came down onto the blocks and the names were
+       left hanging off the bottom of the tile. */
+    private static let blocksHeight: CGFloat = 11
+    private static let barHeight: CGFloat = 5
+    private static let namesHeight: CGFloat = 12
+    private static let rowGap: CGFloat = 3
+    private static var stripHeight: CGFloat {
+        blocksHeight + rowGap + barHeight + rowGap + namesHeight
+    }
+
+    /// Room for "7:55:00" at the size the countdown is set in, so it keeps
+    /// one width all day and the header does not change tier under it.
+    private static let countdownWidth: CGFloat = 48
+
     var body: some View {
         if let first = day.blocks.first, let last = day.blocks.last {
             let runs = day.runs
             let length = last.end.timeIntervalSince(first.start)
             VStack(alignment: .leading, spacing: 5) {
-                // the day, and its hours beside it where there is room for both
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(day.day)
-                            .font(.system(size: 14, weight: .semibold))
-                            .fixedSize()
-                        Spacer(minLength: 6)
-                        Text("\(Timetable.hhmm(first.start))–\(Timetable.hhmm(last.end))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .fixedSize()
-                    }
-                    Text(day.day)
-                        .font(.system(size: 14, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
+                header(first: first, last: last)
                 GeometryReader { geo in
                     let width = { (run: ClassActivityAttributes.Block) in
                         geo.size.width * run.end.timeIntervalSince(run.start) / length
                     }
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: Self.rowGap) {
                         HStack(spacing: 0) {
                             ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
                                 RoundedRectangle(cornerRadius: 2.5)
@@ -562,7 +564,16 @@ struct DayStrip: View {
                                     .frame(width: width(run))
                             }
                         }
-                        .frame(height: 11)
+                        .frame(height: Self.blocksHeight)
+                        /* How far through the day it is, and so which block is
+                           on: where the bar has got to is now. It is pinned to
+                           the width the blocks were laid out against, because
+                           left to itself the watch gave it more than the tile
+                           had — the fill ran under the rounded corner and off
+                           the edge, and four fifths of a bar wider than the
+                           tile looked like a full one, which said nothing at
+                           all about the time. Clipped to `barHeight` it shows
+                           the middle of however tall a bar the system draws. */
                         ProgressView(timerInterval: first.start...last.end, countsDown: false) {
                             EmptyView()
                         } currentValueLabel: {
@@ -570,6 +581,8 @@ struct DayStrip: View {
                         }
                         .progressViewStyle(.linear)
                         .tint(.white)
+                        .frame(width: geo.size.width, height: Self.barHeight)
+                        .clipped()
                         HStack(spacing: 0) {
                             ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
                                 // the name if there is room under the block, its first
@@ -588,16 +601,82 @@ struct DayStrip: View {
                                     }
                                 }
                                 .font(.system(size: 10, weight: .semibold))
+                                /* Kept inside its own block, with the gutter
+                                   the blocks themselves have, so that two full
+                                   names under two neighbouring blocks do not
+                                   come out as one word. A frame does not clip,
+                                   and the narrow blocks — a five-minute move,
+                                   the first period of a split — were letting
+                                   their names run out over the neighbours and
+                                   off the side of the tile. */
+                                .padding(.horizontal, 1.5)
                                 .frame(width: width(run))
+                                .clipped()
                             }
                         }
-                        .frame(height: 12)
+                        .frame(height: Self.namesHeight)
                     }
                 }
-                .frame(height: 34)
+                .frame(height: Self.stripHeight)
             }
             .foregroundStyle(.white)
             .padding(.vertical, 2)
+        }
+    }
+
+    /* The day, and what is left of it. The hours the day runs between are the
+       same at every hour of it; the countdown is the one thing here that is
+       about the time it is being read at, and it costs nothing to keep true,
+       since the system runs it down by itself (the watch cannot be sent
+       anything — see the note above DayStrip). Where there is no room for
+       both, the countdown is the one worth keeping. */
+    @ViewBuilder
+    private func header(first: ClassActivityAttributes.Block, last: ClassActivityAttributes.Block) -> some View {
+        let name = Text(day.day).font(.system(size: 14, weight: .semibold))
+        let hours = Text("\(Timetable.hhmm(first.start))–\(Timetable.hhmm(last.end))")
+            .font(.system(size: 12))
+            .foregroundStyle(.white.opacity(0.6))
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                name.fixedSize()
+                hours.fixedSize()
+                Spacer(minLength: 4)
+                left
+            }
+            HStack(alignment: .firstTextBaseline) {
+                name.fixedSize()
+                Spacer(minLength: 6)
+                left
+            }
+            /* The last tier still has the countdown in it: on the smallest
+               watch the day and its hours and the time left do not all go in
+               one line, and of the three it is the only one that is about the
+               moment it is being read at. So it is the name that gives way. */
+            HStack(alignment: .firstTextBaseline) {
+                name.lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 4)
+                left
+            }
+        }
+    }
+
+    /// The time left of the school day, in a width that does not change with
+    /// it, so the header stays on the tier it started on.
+    @ViewBuilder
+    private var left: some View {
+        if let first = day.blocks.first, let last = day.blocks.last {
+            Text(timerInterval: first.start...last.end, countsDown: true)
+                .font(.countdown(11))
+                .monospacedDigit()
+                /* One line, come what may: the hours it counts are two
+                   characters wider than the minutes, and left to wrap it
+                   broke the seconds onto a second line and pushed the strip
+                   out of the tile. */
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .multilineTextAlignment(.trailing)
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: Self.countdownWidth, alignment: .trailing)
         }
     }
 }
