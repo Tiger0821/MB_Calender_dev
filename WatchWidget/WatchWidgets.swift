@@ -193,6 +193,8 @@ struct NowNextWatchView: View {
     private func morning(_ item: TimedSegment, then: TimedSegment?, scale: CGFloat) -> some View {
         PixelText(text: "Good morning", pixel: scale == 1 ? 2 : 1.5)
             .padding(.bottom, 1)
+        let countdown = Text(timerInterval: entry.date...max(item.start, entry.date), countsDown: true)
+            .font(.system(size: 12 * scale, weight: .semibold).monospacedDigit())
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             // the class keeps its width; on a narrow watch it is the
             // countdown that is set smaller to go in what is left
@@ -202,10 +204,10 @@ struct NowNextWatchView: View {
             /* "in" and the countdown are one text, so the gap between them
                is a space and stays one: as two views, with the countdown
                hard to the right of a width of its own, "in" stood as far
-               from its number as from what came before it. */
-            (Text("in ").font(.system(size: 11 * scale)).foregroundStyle(.secondary)
-                + Text(timerInterval: entry.date...max(item.start, entry.date), countsDown: true)
-                    .font(.system(size: 12 * scale, weight: .semibold).monospacedDigit()))
+               from its number as from what came before it. (One text set
+               inside another, where they were once joined with "+": that
+               was deprecated in watchOS 26.) */
+            Text("\(Text(verbatim: "in ").font(.system(size: 11 * scale)).foregroundStyle(.secondary))\(countdown)")
                 .multilineTextAlignment(.trailing)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -233,10 +235,10 @@ struct NowNextWatchView: View {
     private func line(_ item: TimedSegment, lead: String, scale: CGFloat) -> some View {
         let segment = item.segment
         let place = segment.place.isEmpty ? "" : " · \(segment.place)"
-        return (Text("\(lead) ").foregroundStyle(.secondary)
-            + Text("\(Timetable.hhmm(item.start)) ").foregroundStyle(.secondary)
-            + Text(segment.shortTitle).fontWeight(.semibold)
-            + Text(place).foregroundStyle(.secondary))
+        let when = Text(verbatim: "\(lead) \(Timetable.hhmm(item.start)) ").foregroundStyle(.secondary)
+        let name = Text(verbatim: segment.shortTitle).fontWeight(.semibold)
+        let room = Text(verbatim: place).foregroundStyle(.secondary)
+        return Text("\(when)\(name)\(room)")
             .font(.system(size: 12 * scale))
             .lineLimit(1)
             .minimumScaleFactor(0.75)

@@ -105,7 +105,7 @@ struct WatchRow: View {
                     }
                     if isOn {
                         // the system counts it down between the minute's redraws
-                        (Text(timerInterval: now...item.end, countsDown: true) + Text(" left"))
+                        Text("\(Text(timerInterval: now...item.end, countsDown: true)) left")
                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
                             .foregroundStyle(tint)
                     }
