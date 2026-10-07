@@ -101,10 +101,18 @@ The island counts to the end of the class, so through a double period it is
 one countdown; the Lock Screen counts to the end of the period. In a short
 break the island names the class to come and the time it starts.
 
-On a paired Apple Watch the day shows in the Smart Stack as a strip — a block
-for each class in its colour, as wide as the class is long, with a bar under
-it that fills as the day goes by. (The phone's panels can't be used there:
-on the watch the masks that hide them hide nothing.)
+On a paired Apple Watch the Live Activity shows in the Smart Stack as the
+day's name and a countdown of how long school has left, and no more. (The
+phone's panels can't be used there, and nor can a bar that fills as the day
+goes by: on the watch a bar run by the clock is drawn finished whatever the
+time is, so the masks hide nothing and a bar for the day was full at half
+past two. A countdown is text, and is the one thing that moves.) What is on
+now and what is next is the watch app's own widget — see "On the Apple
+Watch" below.
+
+The watch is sent the drawing when the day's Live Activity starts, so a new
+build shows there from the next start — turn the Lock Screen switch off and
+on in Settings to see it sooner.
 
 - **It goes up at 06:00** on school days (the time can be changed). The app
   books the next school morning with the system each time it is opened, and
@@ -145,9 +153,8 @@ on. For 11B's ten days, measured on 6 Oct 2026:
 | lightest day (13 blocks) | 1,223 KB | 1,436 KB |
 | fullest day (16 blocks) | 1,457 KB | 1,734 KB |
 
-A day of more than sixteen blocks drops the island's minutes for a ring that
-shows how far through the day it is, which is some 300 KB lighter
-(`affordsMinutes`). Anything added to the Live Activity should be weighed the
+A day of more than sixteen blocks drops the island's minutes, which is some
+300 KB lighter (`affordsMinutes`). Anything added to the Live Activity should be weighed the
 same way before it is trusted: the saved file is the `.activity-archive` under
 the simulator's `Containers/Data/PluginKitPlugin/…/SystemData/com.apple.chrono/activities`.
 
@@ -159,6 +166,40 @@ To try it without waiting for a bell, run a debug build with `LIVE_TEST` set
 in the scheme's environment: a number starts a made-up day with blocks that
 many seconds long; `day` starts the next real school day now; `size:3` starts
 the day three days from now as it would be booked, to weigh it.
+
+## On the Apple Watch
+
+The phone app carries a watch app with it (`Watch/`, and its widget in
+`WatchWidget/`). It has no setup of its own: the phone hands it the profile
+whenever the app is opened or the classes change.
+
+- **The app** is the phone's page cut down to what a wrist has room for: each
+  class with the time it starts and its room, the breaks between, the class
+  that is on outlined with its time left, and the same pixel sky behind. No
+  date, no clock, no teachers.
+- **The widget** (Smart Stack › Edit › add Timetable) says the class that is
+  on with its room and the time it has left, and the class after it with its
+  room. From two hours before the first bell it says "Good morning" — in
+  pixels, like the sky (`PixelText.swift` draws the letters as squares) —
+  over the first class, a small countdown to it, and the class after; for the
+  last half hour the countdown takes the greeting's line and is the largest
+  thing on the tile. Over the same hours, and until the last bell, it tells
+  the Smart Stack it is worth bringing to the top. It is a widget and not
+  the Live Activity because a widget is given a timeline, and so can change
+  at every bell.
+
+## Reminders
+
+Fifteen minutes and five minutes before each class starts, a notification
+says what it is and where ("CS in 5 min · 5F HS3"). A double period is
+announced once. The switch is in Settings.
+
+Once Timetable has been opened on the watch, the watch sends them itself, so
+they tap the wrist whatever the phone is doing, and the phone stands down so
+nothing is said twice. Without the watch app the phone sends them, and iOS
+passes them to the watch while the phone is locked. They are laid down some
+four school days ahead (the system keeps 64 for an app) and renewed each time
+either app is opened.
 
 ## Run it
 
@@ -274,15 +315,21 @@ The widgets do not show the weather and still use no network.
 - `App/` — the app: date and clock, Now card, holiday card, the ten-day
   picker, the day's timetable. `SetupView.swift` is setup.
   `ReorderableStack.swift` is the hold-and-drag reordering, edge scrolling
-  included. `Weather.swift` fetches the weather and `PixelSky.swift` paints
-  it. `SettingsPanel.swift` is the settings page and the edge swipe that
+  included. `SettingsPanel.swift` is the settings page and the edge swipe that
   brings it in. `ClassActivityManager.swift` starts and books the Live
   Activity, `LockScreenSettings.swift` is its switch, and
   `ClassActivityIntent.swift` is the Shortcuts action.
 - `Tools/` — `update_timetable.py`, which rebuilds the rows from the school's
-  published timetable.
+  published timetable, and `draw_icon.swift`, which draws the app's icon (a
+  pixel owl in a red bow tie, on white, shaded and lifted in layers) into both asset catalogues.
 - `Widget/` — the widget extension: the widgets, and in
   `ClassLiveActivity.swift` the Live Activity's views.
+- `Common/` — what the phone app and the watch app share but the widgets do
+  not: `Weather.swift` and `PixelSky.swift`, `ClassReminders.swift`, and
+  `DeviceLink.swift`, which carries the profile from phone to watch.
+- `Watch/` and `WatchWidget/` — the watch app and its Smart Stack widget.
+  `Shared/ClassActivity.swift` is left out of both, since there is no
+  ActivityKit on the watch.
 
 The folders are synchronised groups, so a file dropped into one in Finder or
 Xcode is picked up by that folder's targets without editing the project.

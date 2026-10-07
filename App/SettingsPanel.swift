@@ -14,6 +14,7 @@ struct SettingsPanel: View {
     let edit: () -> Void
     let close: () -> Void
     @AppStorage("boxOrder") private var savedOrder = ""
+    @AppStorage("classReminders") private var reminders = true
 
     var body: some View {
         // its own clock, for the Lock Screen switch's status
@@ -35,6 +36,19 @@ struct SettingsPanel: View {
 
                     SettingsSection("Lock Screen", symbol: "lock.iphone") {
                         LockScreenSettings(now: context.date)
+                    }
+
+                    SettingsSection("Reminders", symbol: "bell.badge") {
+                        Toggle(isOn: $reminders) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Before each class")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text("15 minutes and 5 minutes ahead")
+                            }
+                        }
+                        .onChange(of: reminders) { TimetableApp.remind() }
+                        Text("With Timetable open once on a paired Apple Watch, the watch sends them and taps your wrist. Otherwise the phone does, and passes them to the watch while it is locked.")
                     }
 
                     SettingsSection("You", symbol: "person.crop.circle") {

@@ -11,7 +11,7 @@ import WidgetKit
    BlockPanel): its compact form names the class that is on and, beside it,
    says how many minutes are left of it — to the end of the class, where the
    Lock Screen counts to the end of the period — or, on a day too full to
-   afford that, shows a ring for how far through the school day it is. */
+   afford that, leaves the label by itself. */
 struct ClassLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ClassActivityAttributes.self) { context in
@@ -36,11 +36,16 @@ struct ClassLiveActivity: Widget {
                     // one width for every stage, so the ones in hiding sit
                     // exactly behind the one that is showing
                     .frame(width: 50)
-                } else {
-                    DayRing(day: day)
                 }
             } minimal: {
-                DayRing(day: day)
+                /* Where another app has the island too and this is cut down
+                   to a dot. The class that is on was tried here, and it is
+                   a second set of the label's curtains: 70 KB more on the
+                   fullest day, of an allowance with some 220 KB to spare
+                   (see BlockPanel). A mark that says whose dot it is costs
+                   nothing. */
+                Image(systemName: "graduationcap.fill")
+                    .foregroundStyle(.white)
             }
         }
         // the small size is what a paired Apple Watch shows in its Smart Stack;
@@ -184,7 +189,7 @@ extension ClassActivityAttributes {
        over 2,000,000 bytes (1,953 KB), and the ten days of the cycle were
        measured against that on iOS 27, which saves the larger file; the
        figures are in the README. A day of more blocks than the fullest of
-       those gets the ring instead, which takes some 300 KB back off it. */
+       those does without them, which takes some 300 KB back off it. */
     var affordsMinutes: Bool { blocks.count <= 16 }
 
     func tint(_ block: Block) -> Color {
@@ -513,91 +518,47 @@ struct AfterPanel: View {
 
 // MARK: - Apple Watch
 
-/* The Apple Watch's view. The phone's panels can't be used there: they
-   change by hiding one another behind curtains, and on the watch the curtains
-   hide nothing — worn before the first bell, it showed the last panel,
-   "That's the day". What did work in that same picture was the island's
-   ring, so a plain progress bar is something the watch draws properly.
+/* What a paired Apple Watch shows of the Live Activity. The phone's panels
+   can't be used there: they change by hiding one another behind curtains,
+   and on the watch the curtains hide nothing — worn before the first bell,
+   it showed the last panel, "That's the day". A bar run by the clock is drawn
+   finished there whatever the time is: a bar for the day, tried next, was
+   full at half past two. The one thing the watch does keep moving is a
+   countdown.
 
-   So the watch gets a view that is true all day without having to change:
-   the day as a strip, a block for each class in its colour and as wide as it
-   is long, with the names underneath, and between the two a bar the system
-   fills as the day goes by. Where the bar has got to is the class that is
-   on. */
+   A strip of the whole day with its hours was tried after that, and was
+   true, and was too much to read on a wrist. So this is only what can be
+   said plainly and stay right all day: which day it is, and how long school
+   has left. What is on now and what is next is the watch app's own widget
+   (WatchWidget), which is given a timeline and can change at every bell. */
 struct DayStrip: View {
     let day: ClassActivityAttributes
 
     var body: some View {
         if let first = day.blocks.first, let last = day.blocks.last {
-            let runs = day.runs
-            let length = last.end.timeIntervalSince(first.start)
-            VStack(alignment: .leading, spacing: 5) {
-                // the day, and its hours beside it where there is room for both
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(day.day)
-                            .font(.system(size: 14, weight: .semibold))
-                            .fixedSize()
-                        Spacer(minLength: 6)
-                        Text("\(Timetable.hhmm(first.start))–\(Timetable.hhmm(last.end))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .fixedSize()
-                    }
-                    Text(day.day)
-                        .font(.system(size: 14, weight: .semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(day.day)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    // a countdown takes all the width there is, so it is given its own
+                    Text(timerInterval: first.start...last.end, countsDown: true)
+                        .font(.countdown(20))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(width: 92, alignment: .leading)
+                    Text("of school left")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.6))
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
-                GeometryReader { geo in
-                    let width = { (run: ClassActivityAttributes.Block) in
-                        geo.size.width * run.end.timeIntervalSince(run.start) / length
-                    }
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 0) {
-                            ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
-                                RoundedRectangle(cornerRadius: 2.5)
-                                    .fill(run.isLesson ? day.tint(run) : Color.white.opacity(0.16))
-                                    .padding(.horizontal, 0.75)
-                                    .frame(width: width(run))
-                            }
-                        }
-                        .frame(height: 11)
-                        ProgressView(timerInterval: first.start...last.end, countsDown: false) {
-                            EmptyView()
-                        } currentValueLabel: {
-                            EmptyView()
-                        }
-                        .progressViewStyle(.linear)
-                        .tint(.white)
-                        HStack(spacing: 0) {
-                            ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
-                                // the name if there is room under the block, its first
-                                // two letters if not, and nothing if not even those
-                                Group {
-                                    if run.isLesson {
-                                        ViewThatFits(in: .horizontal) {
-                                            Text(run.short).fixedSize()
-                                            Text(String(run.short.prefix(2))).fixedSize()
-                                            Color.clear.frame(width: 0, height: 1)
-                                        }
-                                        .foregroundStyle(day.tint(run))
-                                    } else if run.tint == "Lunch" {
-                                        Image(systemName: "fork.knife")
-                                            .foregroundStyle(.white.opacity(0.45))
-                                    }
-                                }
-                                .font(.system(size: 10, weight: .semibold))
-                                .frame(width: width(run))
-                            }
-                        }
-                        .frame(height: 12)
-                    }
-                }
-                .frame(height: 34)
             }
             .foregroundStyle(.white)
-            .padding(.vertical, 2)
+            // the tile gives its content no margin of its own
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 }
@@ -702,31 +663,17 @@ struct MinutesLeft: View {
                         .fixedSize()
                 }
                 .clipped()
+                /* and a point more off the right of the window: the colon
+                   stands hard against it, and its edge showed as a speck
+                   between the minutes and "min" */
+                .mask(alignment: .leading) { Rectangle().padding(.trailing, 1) }
             Text("min")
                 .font(.countdown(13))
         }
     }
 }
 
-/// How far through the school day it is, as a ring: one bar for the whole
-/// day, where a ring per class would cost a bar and a curtain each.
-struct DayRing: View {
-    let day: ClassActivityAttributes
-
-    var body: some View {
-        if let first = day.blocks.first, let last = day.blocks.last {
-            ProgressView(timerInterval: first.start...last.end, countsDown: false) {
-                EmptyView()
-            } currentValueLabel: {
-                EmptyView()
-            }
-            .progressViewStyle(.circular)
-            .tint(.green)
-        }
-    }
-}
-
-/// The island pulled open: the day and its hours, and how far through it is.
+/// The island pulled open: the day and its hours.
 struct DaySummary: View {
     let day: ClassActivityAttributes
 
@@ -741,13 +688,6 @@ struct DaySummary: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.6))
                 }
-                ProgressView(timerInterval: first.start...last.end, countsDown: false) {
-                    EmptyView()
-                } currentValueLabel: {
-                    EmptyView()
-                }
-                .progressViewStyle(.linear)
-                .tint(.green)
                 Text("\(day.blocks.filter(\.isLesson).count) classes · the Lock Screen has the one that's on")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.6))
