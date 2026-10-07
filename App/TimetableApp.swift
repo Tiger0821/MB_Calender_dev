@@ -5,11 +5,22 @@ import WidgetKit
 struct TimetableApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
-    #if DEBUG
     init() {
+        #if DEBUG
         ClassActivityManager.isTesting = ProcessInfo.processInfo.environment["LIVE_TEST"] != nil
+        #endif
+        ReminderPresenter.shared.install()
+        // the watch saying it has the reminders, or that it no longer has
+        DeviceLink.shared.received = { Self.remind() }
+        DeviceLink.shared.start()
     }
-    #endif
+
+    /// Hand the watch the profile, and lay the class reminders down again —
+    /// or clear them, where the watch has them in hand.
+    static func remind() {
+        DeviceLink.shared.send()
+        Task { await ClassReminders.schedule(standDown: DeviceLink.shared.watchHasReminders) }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -48,7 +59,10 @@ struct TimetableApp: App {
         // the widgets lay out two days at a time; opening the app is a good
         // moment to have them lay out afresh
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { WidgetCenter.shared.reloadAllTimelines() }
+            if phase == .active {
+                WidgetCenter.shared.reloadAllTimelines()
+                Self.remind()
+            }
         }
     }
 }

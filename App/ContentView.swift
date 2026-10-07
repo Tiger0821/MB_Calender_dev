@@ -139,6 +139,8 @@ struct ContentView: View {
             picked = nil
         }
         WidgetCenter.shared.reloadAllTimelines()
+        // the watch lays out the same profile, and the reminders name its classes
+        TimetableApp.remind()
         // a day already on the Lock Screen was laid out for the old profile
         Task { await ClassActivityManager.refresh(reset: .everything) }
     }
@@ -182,7 +184,8 @@ struct ContentView: View {
                         switch box {
                         case .now: NowCard(snapshot: snapshot, now: now)
                         case .holiday: HolidayCard(now: now)
-                        case .days: DayPicker(picked: $picked, shown: shown, today: today)
+                        case .days: DayPicker(picked: $picked, shown: shown, today: today,
+                                               followed: snapshot.day.first?.cycleDay ?? today)
                         case .timetable:
                             VStack(alignment: .leading, spacing: 6) {
                                 dayHeader(shown, today: today, snapshot: snapshot)
@@ -613,6 +616,8 @@ struct DayPicker: View {
     @Binding var picked: Int?
     let shown: Int
     let today: Int?
+    /// The day the page shows when it is left to follow the clock.
+    let followed: Int?
 
     var body: some View {
         VStack(spacing: 6) {
@@ -637,7 +642,9 @@ struct DayPicker: View {
         let week = day / 5, weekday = day % 5
         let isShown = day == shown
         return Button {
-            withAnimation(.snappy) { picked = day }
+            // picking the day the clock is on anyway is going back to the clock,
+            // not a pick: left as one, "Today" stayed up over today's own list
+            withAnimation(.snappy) { picked = day == followed ? nil : day }
         } label: {
             VStack(spacing: 3) {
                 Text(week == 0 ? "\(weekday + 1)" : Timetable.dayNames[weekday])

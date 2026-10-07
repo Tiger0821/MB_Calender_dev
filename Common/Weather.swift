@@ -1,5 +1,7 @@
 import CoreLocation
+#if !os(watchOS)
 import MapKit
+#endif
 import SwiftUI
 
 /* The weather outside, for the sky painted behind the page. It comes from
@@ -132,8 +134,26 @@ final class WeatherModel {
 
     // MARK: Where
 
+    /* A simulator has no position unless one is set for it by hand, and
+       loses the one it had when it is erased; without a position there is no
+       weather, and without the weather the page has no sky, which is the
+       first thing the phone's page has. So in a simulator a fix that does
+       not come is made up for with the middle of Taipei, and is not waited
+       on for long. On a phone or a watch none of this is compiled in. */
+    #if targetEnvironment(simulator)
+    private static let patience = 5.0
+    private static let standIn: CLLocation? = CLLocation(latitude: 25.04, longitude: 121.56)
+    #else
+    private static let patience = 30.0
+    private static let standIn: CLLocation? = nil
+    #endif
+
     /// One fix on the phone's position, or nil when it is refused or slow.
     private static func whereabouts() async -> CLLocation? {
+        await fix() ?? standIn
+    }
+
+    private static func fix() async -> CLLocation? {
         await withTaskGroup(of: CLLocation?.self) { group in
             group.addTask {
                 // asks for leave to use the location the first time
@@ -146,7 +166,7 @@ final class WeatherModel {
                 return settled?.location
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(patience))
                 return nil
             }
             let first = await group.next() ?? nil
@@ -156,8 +176,13 @@ final class WeatherModel {
     }
 
     private static func placeName(_ location: CLLocation) async -> String? {
+        #if os(watchOS)
+        // the watch shows the sky and not where it is over
+        return nil
+        #else
         guard let request = MKReverseGeocodingRequest(location: location) else { return nil }
         return try? await request.mapItems.first?.addressRepresentations?.cityName
+        #endif
     }
 
     // MARK: What
