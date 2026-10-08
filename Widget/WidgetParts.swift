@@ -136,6 +136,30 @@ struct FocusBlock: View {
                         .padding(.top, 4)
                 }
             }
+        } else if let holiday = snapshot.holidayToday {
+            // a weekday off for a holiday: that first, and the next class under it
+            VStack(alignment: .leading, spacing: 2) {
+                Eyebrow(title: "No class today", detail: "", tint: .red)
+                Text(holiday.name)
+                    .font(.title3.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .widgetAccentable()
+                Text(holiday.localName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                if showsNext, let next = snapshot.upcoming.first {
+                    LeadIn(label: "Next", name: next.segment.shortTitle)
+                        .font(.caption)
+                        .lineLimit(1)
+                    Text("\(snapshot.dayLabel) \(Timetable.hhmm(next.segment.start))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
         } else if let next = snapshot.upcoming.first {
             VStack(alignment: .leading, spacing: 2) {
                 Eyebrow(title: "Next", detail: snapshot.dayLabel, tint: next.segment.tint)
