@@ -151,6 +151,7 @@ struct ContentView: View {
             let snapshot = Timetable.snapshot(at: now)
             let today = Timetable.cycleDay(of: now)
             let shown = picked ?? snapshot.day.first?.cycleDay ?? today ?? 0
+            let daysOff = daysOff(at: now, snapshot: snapshot)
             let phase = weather.current?.phase(at: now)
             let scene = weather.current.map { SkyScene(sky: $0.sky, phase: phase ?? .day, wind: $0.wind) }
 
@@ -185,11 +186,11 @@ struct ContentView: View {
                         case .now: NowCard(snapshot: snapshot, now: now)
                         case .holiday: HolidayCard(now: now)
                         case .days: DayPicker(picked: $picked, shown: shown, today: today,
-                                               followed: snapshot.day.first?.cycleDay ?? today)
+                                               followed: snapshot.day.first?.cycleDay ?? today, daysOff: daysOff)
                         case .timetable:
                             VStack(alignment: .leading, spacing: 6) {
                                 dayHeader(shown, today: today, snapshot: snapshot)
-                                DayList(day: shown, live: shown == today, now: now)
+                                DayList(day: shown, live: shown == today, now: now, dayOff: daysOff[shown])
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 14)
@@ -268,6 +269,16 @@ struct ContentView: View {
             LinearGradient(colors: [tint.opacity(0.28), .clear], startPoint: .top, endPoint: .center)
                 .background(Color(.systemBackground))
         }
+    }
+
+    /* Which of the ten days are off for a national holiday, by cycle day.
+       The picker's days are days of the cycle and carry no dates, so each is
+       taken for the date it falls on this week or next; the day the page
+       follows the clock to is the one date known for certain. */
+    private func daysOff(at now: Date, snapshot: Snapshot) -> [DayOff?] {
+        var dates = Timetable.fortnight(at: now)
+        if let first = snapshot.day.first { dates[first.cycleDay] = snapshot.dayDate }
+        return dates.map { date in Holidays.off(on: date).map { DayOff(date: date, holiday: $0) } }
     }
 
     private static let weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -511,7 +522,7 @@ struct NowCard: View {
     let now: Date
 
     var body: some View {
-        let tint = snapshot.focus?.segment.tint ?? .accentColor
+        let tint = snapshot.holidayToday != nil ? .red : snapshot.focus?.segment.tint ?? .accentColor
         VStack(alignment: .leading, spacing: 10) {
             if let current = snapshot.current {
                 Label("Now", systemImage: current.segment.symbol)
@@ -536,6 +547,24 @@ struct NowCard: View {
                     Divider()
                     NextLine(item: next, label: "Next")
                 }
+            } else if let holiday = snapshot.holidayToday {
+                // a weekday with no school on it says so, and why, before it says what is next
+                Label("No class today", systemImage: holiday.symbol)
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.red)
+                Text(holiday.name)
+                    .font(.largeTitle.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                Text("\(holiday.localName) · \(holiday.offReason)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let next = snapshot.upcoming.first {
+                    Divider()
+                    NextLine(item: next, label: snapshot.dayLabel)
+                }
+                daysOffAhead
             } else if let next = snapshot.upcoming.first {
                 Label("Next · \(snapshot.dayLabel)", systemImage: "arrow.forward.circle")
                     .font(.caption.weight(.bold))
@@ -553,6 +582,7 @@ struct NowCard: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                daysOffAhead
             } else {
                 Label("Nothing on the timetable", systemImage: "calendar")
                     .font(.headline)
@@ -561,6 +591,16 @@ struct NowCard: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular.tint(tint.opacity(0.15)), in: .rect(cornerRadius: 28))
+    }
+
+    /// Why the next class is not on the next day: the holiday in between.
+    @ViewBuilder
+    private var daysOffAhead: some View {
+        if let note = snapshot.daysOffAhead {
+            Label(note, systemImage: "flag.fill")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.red)
+        }
     }
 
     private func minutesLeft(_ item: TimedSegment) -> Int { minutesLeft(until: item.end) }
@@ -618,6 +658,8 @@ struct DayPicker: View {
     let today: Int?
     /// The day the page shows when it is left to follow the clock.
     let followed: Int?
+    /// The days off for a national holiday, by cycle day, in this fortnight.
+    let daysOff: [DayOff?]
 
     var body: some View {
         VStack(spacing: 6) {
@@ -641,6 +683,7 @@ struct DayPicker: View {
     private func dayButton(_ day: Int) -> some View {
         let week = day / 5, weekday = day % 5
         let isShown = day == shown
+        let holiday = daysOff[day]?.holiday
         return Button {
             // picking the day the clock is on anyway is going back to the clock,
             // not a pick: left as one, "Today" stayed up over today's own list
@@ -654,31 +697,109 @@ struct DayPicker: View {
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity, minHeight: 44)
-            .foregroundStyle(isShown ? Color.primary : .secondary)
+            // a day off is in red, as a calendar prints one
+            .foregroundStyle(holiday != nil ? Color.red : isShown ? Color.primary : .secondary)
             .background {
                 if isShown { Capsule().fill(.tint.opacity(0.2)) }
             }
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(Timetable.dayNames[weekday]), Week \(week + 1)")
+        .accessibilityLabel("\(Timetable.dayNames[weekday]), Week \(week + 1)" + (holiday.map { ", no class, \($0.name)" } ?? ""))
         .accessibilityAddTraits(isShown ? .isSelected : [])
     }
 }
 
+/* In place of a day's classes when it is off for a national holiday: that
+   there are none, which holiday it is, and the date it takes out. Show
+   brings the day's usual classes up under it all the same, for looking at
+   what the cycle has there, and Hide puts them away again. */
+struct DayOffNotice: View {
+    let dayOff: DayOff
+    @Binding var showsUsual: Bool
+
+    var body: some View {
+        let holiday = dayOff.holiday
+        VStack(spacing: 4) {
+            VStack(spacing: 4) {
+                Image(systemName: holiday.symbol)
+                    .font(.largeTitle)
+                    .foregroundStyle(.red)
+                    .padding(.bottom, 6)
+                    .accessibilityHidden(true)
+                Text("No class")
+                    .font(.title3.weight(.bold))
+                Text("\(holiday.name) · \(holiday.localName)")
+                    .font(.subheadline.weight(.semibold))
+                Text("\(Holidays.short(dayOff.date)) · \(holiday.offReason)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
+            .accessibilityElement(children: .combine)
+            Button {
+                withAnimation(.snappy) { showsUsual.toggle() }
+            } label: {
+                Label(showsUsual ? "Hide" : "Show", systemImage: showsUsual ? "eye.slash" : "eye")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 38)
+                    .background(.tint.opacity(0.2), in: .capsule)
+                    .contentShape(.capsule)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+            .accessibilityLabel(showsUsual ? "Hide the usual classes" : "Show the usual classes")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 28)
+        .padding(.bottom, showsUsual ? 12 : 22)
+        .padding(.horizontal, 12)
+    }
+}
+
 /// One day, in order. When it is today, what's done is greyed back and the
-/// block running now fills across as it runs down.
+/// block running now fills across as it runs down. A day off for a holiday
+/// has none of it: the cycle's classes for that day are not on, and are
+/// only listed, under the notice, when asked for.
 struct DayList: View {
     let day: Int
     let live: Bool
     let now: Date
+    var dayOff: DayOff?
+    /// Whether a day off has its usual classes listed under its notice.
+    @State private var showsUsual = false
 
     var body: some View {
+        Group {
+            if let dayOff {
+                VStack(spacing: 4) {
+                    DayOffNotice(dayOff: dayOff, showsUsual: $showsUsual)
+                    if showsUsual {
+                        Text("Usual classes — not on")
+                            .font(.caption.weight(.bold))
+                            .textCase(.uppercase)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                        // none of it is running, whatever the time
+                        rows(live: false)
+                    }
+                }
+            } else {
+                rows(live: live)
+            }
+        }
+        // asked for on one day off, not on every one after it
+        .onChange(of: day) { showsUsual = false }
+    }
+
+    private func rows(live: Bool) -> some View {
         let cal = Timetable.calendar
         let minute = Double(cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now))
             + Double(cal.component(.second, from: now)) / 60
         let line = Timetable.lines[day]
-        VStack(spacing: 4) {
+        return VStack(spacing: 4) {
             if line.isEmpty {
                 Text("Nothing on this day.")
                     .foregroundStyle(.secondary)

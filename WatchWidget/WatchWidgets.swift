@@ -133,6 +133,18 @@ struct NowNextWatchView: View {
                 } else {
                     line(next, lead: snapshot.dayLabel, scale: scale)
                 }
+            } else if let holiday = snapshot.holidayToday {
+                // a weekday off for a holiday: that, and under it the next class
+                Text("No class today")
+                    .font(.system(size: 12 * scale))
+                    .foregroundStyle(.secondary)
+                Text(holiday.name)
+                    .font(.system(size: 16 * scale, weight: .bold))
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .widgetAccentable()
+                if let next { line(next, lead: snapshot.dayLabel, scale: scale) }
             } else if let next {
                 line(next, lead: snapshot.dayLabel, scale: scale)
             } else {
@@ -248,6 +260,8 @@ struct NowNextWatchView: View {
     private func inline(current: TimedSegment?, next: TimedSegment?) -> some View {
         if let current, current.segment.isLesson {
             Text("\(current.segment.shortTitle) until \(Timetable.hhmm(classEnd(of: current, in: entry.snapshot.day)))")
+        } else if let holiday = entry.snapshot.holidayToday {
+            Text("No class · \(holiday.name)")
         } else if let next {
             Text("\(next.segment.shortTitle) at \(Timetable.hhmm(next.start))")
         } else {

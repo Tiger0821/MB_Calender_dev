@@ -50,6 +50,11 @@ struct DayView: View {
                     TimeLeft(segment: now)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(now.segment.tint)
+                } else if let holiday = snapshot.holidayToday {
+                    // the day below is the next school day; today is a day off
+                    Label("No class today · \(holiday.localName)", systemImage: holiday.symbol)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.red)
                 }
             }
             .lineLimit(1)

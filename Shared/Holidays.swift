@@ -36,6 +36,25 @@ struct Holiday: Hashable, Sendable, Identifiable {
     var dayOffText: String? {
         dayOff.map { Holidays.short(Holidays.date($0)) + " off" }
     }
+
+    /// The days school is off for it, as "2026-10-09": the weekday given in
+    /// its place when it lands on a weekend, and otherwise each day it runs.
+    var daysOff: [String] {
+        if let dayOff { return [dayOff] }
+        return (0..<length).map { Holidays.iso(Timetable.calendar.date(byAdding: .day, value: $0, to: start)!) }
+    }
+
+    /// Why one of those days is off: "National holiday", or for a day given
+    /// in place of one at a weekend, "Day off for Sat, Oct 10".
+    var offReason: String {
+        dayOff == nil ? "National holiday" : "Day off for " + Holidays.short(start)
+    }
+}
+
+/// A weekday with no school on it, and the national holiday it is off for.
+struct DayOff: Hashable, Sendable {
+    let date: Date
+    let holiday: Holiday
 }
 
 /// How far off a holiday is, in the terms it is shown in.
@@ -77,6 +96,28 @@ enum Holidays {
 
     static func short(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    }
+
+    /// The day `date` falls on, as "2026-10-10".
+    static func iso(_ date: Date) -> String {
+        let c = Timetable.calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// Every day school is off, and the holiday it is off for.
+    private static let daysOff: [String: Holiday] = {
+        var days: [String: Holiday] = [:]
+        for holiday in all {
+            for day in holiday.daysOff where days[day] == nil { days[day] = holiday }
+        }
+        return days
+    }()
+
+    /// The holiday that gives `date` off school, if one does. The timetable
+    /// knows nothing of holidays, so this is what keeps a day's classes off
+    /// the page, out of the widgets and unannounced when there are none.
+    static func off(on date: Date) -> Holiday? {
+        daysOff[iso(date)]
     }
 
     /// The holidays not yet over, soonest first.

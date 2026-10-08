@@ -40,13 +40,15 @@ struct MediumView: View {
     let snapshot: Snapshot
 
     var body: some View {
-        // whatever the left-hand block already shows is left off the list
-        let later = Array(snapshot.upcoming.dropFirst(snapshot.current == nil ? 1 : 0).prefix(3))
+        // whatever the left-hand block already shows is left off the list; on a
+        // day off that is the holiday, and the list is the whole of the next day
+        let dayOff = snapshot.holidayToday != nil
+        let later = Array(snapshot.upcoming.dropFirst(snapshot.current == nil && !dayOff ? 1 : 0).prefix(3))
         HStack(alignment: .top, spacing: 14) {
             FocusBlock(snapshot: snapshot, showsNext: false)
                 .frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .leading, spacing: 8) {
-                Text(snapshot.current == nil ? "Then" : snapshot.isToday ? "Up next" : snapshot.dayLabel)
+                Text(dayOff ? snapshot.dayLabel : snapshot.current == nil ? "Then" : snapshot.isToday ? "Up next" : snapshot.dayLabel)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -84,6 +86,23 @@ struct RectangularView: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let holiday = snapshot.holidayToday {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("No class today")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(holiday.name)
+                    .font(.headline)
+                    .widgetAccentable()
+                    .lineLimit(1)
+                if let next = snapshot.upcoming.first {
+                    Text("Next \(next.segment.shortTitle) · \(snapshot.dayLabel) \(Timetable.hhmm(next.segment.start))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else if let next = snapshot.upcoming.first {
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(snapshot.dayLabel) \(Timetable.hhmm(next.segment.start))")
@@ -116,6 +135,13 @@ struct CircularView: View {
             }
             .progressViewStyle(.circular)
             .widgetAccentable()
+        } else if let holiday = snapshot.holidayToday {
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: holiday.symbol)
+                    .font(.title3)
+                    .widgetAccentable()
+            }
         } else if let next = snapshot.upcoming.first {
             ZStack {
                 AccessoryWidgetBackground()
@@ -142,6 +168,8 @@ struct InlineView: View {
     var body: some View {
         if let now = snapshot.current {
             Label("\(now.segment.shortTitle) till \(Timetable.hhmm(now.segment.end))", systemImage: now.segment.symbol)
+        } else if let holiday = snapshot.holidayToday {
+            Label("No class · \(holiday.name)", systemImage: holiday.symbol)
         } else if let next = snapshot.upcoming.first {
             Label("\(next.segment.shortTitle) \(snapshot.isToday ? "at" : snapshot.dayLabel) \(Timetable.hhmm(next.segment.start))",
                   systemImage: "calendar")

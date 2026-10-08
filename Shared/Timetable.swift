@@ -95,6 +95,10 @@ struct Snapshot: Sendable {
     let day: [TimedSegment]
     /// The date `day` falls on.
     let dayDate: Date
+    /// The weekdays off for a national holiday from today up to the day
+    /// shown, which is why that day is not simply the next one. Today is the
+    /// first of them when it is one.
+    var daysOff: [DayOff] = []
 
     var isToday: Bool { Timetable.calendar.isDate(dayDate, inSameDayAs: date) }
 
@@ -108,7 +112,36 @@ struct Snapshot: Sendable {
         if let tomorrow = cal.date(byAdding: .day, value: 1, to: date), cal.isDate(dayDate, inSameDayAs: tomorrow) {
             return "Tomorrow"
         }
-        return dayDate.formatted(.dateTime.weekday(.wide))
+        // a week or more off, as after Lunar New Year, the weekday alone would be taken for this week's
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: date), to: cal.startOfDay(for: dayDate)).day ?? 0
+        return days < 7 ? dayDate.formatted(.dateTime.weekday(.wide)) : Holidays.short(dayDate)
+    }
+
+    /// The holiday today is off school for, when it is.
+    var holidayToday: Holiday? {
+        guard let first = daysOff.first, Timetable.calendar.isDate(first.date, inSameDayAs: date) else { return nil }
+        return first.holiday
+    }
+
+    /// The days off still ahead before the day shown, in a line: "No class
+    /// tomorrow · National Day 國慶日", or the run of them for a longer one.
+    var daysOffAhead: String? {
+        let cal = Timetable.calendar
+        let ahead = daysOff.filter { !cal.isDate($0.date, inSameDayAs: date) }
+        guard let first = ahead.first, let last = ahead.last else { return nil }
+        let when: String
+        if first != last {
+            when = Holidays.short(first.date) + " – " + Holidays.short(last.date)
+        } else if let tomorrow = cal.date(byAdding: .day, value: 1, to: date), cal.isDate(first.date, inSameDayAs: tomorrow) {
+            when = "tomorrow"
+        } else {
+            when = Holidays.short(first.date)
+        }
+        var names: [String] = []
+        for day in ahead where !names.contains(day.holiday.name + " " + day.holiday.localName) {
+            names.append(day.holiday.name + " " + day.holiday.localName)
+        }
+        return "No class \(when) · " + names.joined(separator: ", ")
     }
 }
 
@@ -432,8 +465,24 @@ enum Timetable {
         weekday(of: date).map { week(of: date) * 5 + $0 }
     }
 
+    /* The date each of the ten cycle days falls on in the fortnight in hand:
+       this week and the next, or at a weekend the two weeks coming. The cycle
+       itself has no dates, but a holiday does, and this is how one finds the
+       day it takes out. */
+    static func fortnight(at now: Date) -> [Date] {
+        let cal = calendar
+        var first = monday(of: now)
+        if weekday(of: now) == nil { first = cal.date(byAdding: .day, value: 7, to: first)! }
+        let leading = week(of: first)
+        return (0..<10).map { day in
+            cal.date(byAdding: .day, value: (day / 5 == leading ? 0 : 7) + day % 5, to: first)!
+        }
+    }
+
+    /// The classes on `date`: none at a weekend, and none on a day off for a
+    /// national holiday, whatever the cycle has down for it.
     static func day(of date: Date) -> [TimedSegment] {
-        guard let d = cycleDay(of: date) else { return [] }
+        guard Holidays.off(on: date) == nil, let d = cycleDay(of: date) else { return [] }
         let cal = calendar
         let midnight = cal.startOfDay(for: date)
         return lines[d].map {
@@ -466,9 +515,23 @@ enum Timetable {
         if let next = nextSchoolDay(after: now) {
             let day = day(of: next)
             return Snapshot(date: now, current: nil, upcoming: day.filter(\.segment.isLesson),
-                            day: day, dayDate: next)
+                            day: day, dayDate: next, daysOff: daysOff(from: now, until: next))
         }
-        return Snapshot(date: now, current: nil, upcoming: [], day: [], dayDate: now)
+        return Snapshot(date: now, current: nil, upcoming: [], day: [], dayDate: now,
+                        daysOff: daysOff(from: now, until: now.addingTimeInterval(1)))
+    }
+
+    /// The weekdays from the one `start` is in up to `end` that are off for
+    /// a holiday. A holiday at a weekend takes no school day and is left out.
+    private static func daysOff(from start: Date, until end: Date) -> [DayOff] {
+        let cal = calendar
+        var out: [DayOff] = []
+        var day = cal.startOfDay(for: start)
+        while day < end {
+            if weekday(of: day) != nil, let holiday = Holidays.off(on: day) { out.append(DayOff(date: day, holiday: holiday)) }
+            day = cal.date(byAdding: .day, value: 1, to: day)!
+        }
+        return out
     }
 
     /// Every moment from `now` on at which what a widget shows changes — each

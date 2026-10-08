@@ -2,9 +2,11 @@ import SwiftUI
 
 /* The day on the watch: the phone's page with everything taken off it that
    the watch has no room for, or already says. No date and no clock — the
-   watch has its own at the top of the screen — no teachers, no holiday, no
-   picker. What is left is each class with the time it starts and its room,
-   the breaks between them, and behind it all the same sky.
+   watch has its own at the top of the screen — no teachers, no holiday
+   countdown, no picker. What is left is each class with the time it starts
+   and its room, the breaks between them, and behind it all the same sky. A
+   weekday off for a holiday is still said, since the day under it is then
+   not today's.
 
    It follows the clock, as the phone's does: today until the last bell, and
    after that the next school day, which is then named at the top since it is
@@ -31,6 +33,21 @@ struct WatchDayView: View {
                             Text("No classes")
                                 .font(.headline)
                         } else {
+                            if let holiday = snapshot.holidayToday {
+                                // a weekday off for a holiday: said first, then the next school day
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Label("No class today", systemImage: holiday.symbol)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(.red)
+                                    Text("\(holiday.name) · \(holiday.localName)")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.black.opacity(0.38), in: .rect(cornerRadius: 12))
+                            }
                             if !snapshot.isToday {
                                 Text(snapshot.dayLabel)
                                     .font(.footnote.weight(.semibold))
