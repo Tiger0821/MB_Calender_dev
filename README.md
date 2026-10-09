@@ -170,9 +170,21 @@ the day three days from now as it would be booked, to weigh it.
 ## On the Apple Watch
 
 The phone app carries a watch app with it (`Watch/`, and its widget in
-`WatchWidget/`). It has no setup of its own: the phone hands it the profile
-whenever the app is opened or the classes change.
+`WatchWidget/`), and the watch app stands on its own as well: it is marked as
+running independently of the phone's, and has a setup of its own, so it shows
+the day on a watch whose phone has never had Timetable opened.
 
+- **Setup** on the wrist (`WatchSetupView.swift`) is the phone's with what
+  wants a keyboard taken out: your form, each set of classes that are on at
+  the same time, and any SL revision. It comes up the first time, and again
+  from "Change classes" under the day. Your name and what your clubs are
+  called are asked only on the phone, and are kept when the classes are
+  changed on the watch.
+- **With a phone that has been set up too**, the phone hands its profile
+  across whenever the app is opened or the classes change, with the time it
+  came out of setup. The watch takes it unless its own is the newer, so the
+  watch shows whichever was changed last. What is chosen on the watch is not
+  handed back to the phone.
 - **The app** is the phone's page cut down to what a wrist has room for: each
   class with the time it starts and its room, the breaks between, the class
   that is on outlined with its time left, and the same pixel sky behind. No
@@ -325,8 +337,10 @@ The widgets do not show the weather and still use no network.
 - `Widget/` — the widget extension: the widgets, and in
   `ClassLiveActivity.swift` the Live Activity's views.
 - `Common/` — what the phone app and the watch app share but the widgets do
-  not: `Weather.swift` and `PixelSky.swift`, `ClassReminders.swift`, and
-  `DeviceLink.swift`, which carries the profile from phone to watch.
+  not: `Weather.swift` and `PixelSky.swift`, `ClassReminders.swift`,
+  `Picking.swift`, which is what a pick in setup does to the profile on
+  either, and `DeviceLink.swift`, which carries the profile from phone to
+  watch.
 - `Watch/` and `WatchWidget/` — the watch app and its Smart Stack widget.
   `Shared/ClassActivity.swift` is left out of both, since there is no
   ActivityKit on the watch.

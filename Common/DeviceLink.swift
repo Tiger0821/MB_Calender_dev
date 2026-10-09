@@ -3,11 +3,14 @@ import WatchConnectivity
 
 /* The line between the phone and the watch.
 
-   The watch has no setup of its own: whose timetable it is, is decided on
-   the phone, and an app group does not reach from one device to the other.
-   So the phone hands the profile across here, and whether reminders are
-   wanted; and the watch says back how far ahead it has reminders laid down,
-   which is what lets the phone leave them to it (see ClassReminders).
+   Whose timetable it is can be decided on either: the phone has its setup
+   and the watch a shorter one of its own, and an app group does not reach
+   from one device to the other. So the phone hands the profile across here,
+   with the time it came out of setup, and whether reminders are wanted. The
+   watch takes the profile unless its own is the newer, so that a watch set
+   up on the wrist is not put back by a phone that has had nothing changed
+   on it since. And the watch says back how far ahead it has reminders laid
+   down, which is what lets the phone leave them to it (see ClassReminders).
 
    Both ways it is the "application context": the latest word only, kept by
    the system and delivered when the other side is next about. Nothing is
@@ -51,7 +54,8 @@ final class DeviceLink: NSObject, WCSessionDelegate {
     func send() {
         guard let session, session.isPaired, session.isWatchAppInstalled,
               let profile = Timetable.profile, let data = try? JSONEncoder().encode(profile) else { return }
-        try? session.updateApplicationContext(["profile": data, "reminders": ClassReminders.isOn])
+        try? session.updateApplicationContext(["profile": data, "changed": Profile.changed,
+                                               "reminders": ClassReminders.isOn])
     }
 
     /// Whether the watch has said it has reminders laid down from here on.
@@ -63,9 +67,13 @@ final class DeviceLink: NSObject, WCSessionDelegate {
     #else
     private func take(_ context: [String: Any]) {
         if let on = context["reminders"] as? Bool { ClassReminders.isOn = on }
+        /* The system keeps the phone's last word and gives it again each
+           time the watch app starts, so it is taken only if it is no older
+           than what the watch has: one never stamped counts as oldest. */
+        let changed = context["changed"] as? Date ?? .distantPast
         if let data = context["profile"] as? Data, let profile = try? JSONDecoder().decode(Profile.self, from: data),
-           profile != Timetable.profile {
-            profile.save()
+           profile != Timetable.profile, changed >= Profile.changed {
+            profile.save(changed: changed)
             Timetable.profile = profile
         }
     }

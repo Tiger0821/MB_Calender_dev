@@ -29,6 +29,7 @@ struct Profile: Codable, Hashable {
     static let group = "group.com.tigercho.ManageBacTimetable"
 
     private static let key = "profile"
+    private static let changedKey = "profileChanged"
     private static var defaults: UserDefaults { UserDefaults(suiteName: group) ?? .standard }
 
     static func load() -> Profile? {
@@ -36,7 +37,17 @@ struct Profile: Codable, Hashable {
         return try? JSONDecoder().decode(Profile.self, from: data)
     }
 
-    func save() {
+    /// When the saved profile came out of setup, on whichever device that
+    /// was. The watch can be set up on its own, and goes by this in telling
+    /// whether the phone's profile is newer than the one it has (DeviceLink).
+    static var changed: Date {
+        defaults.object(forKey: changedKey) as? Date ?? .distantPast
+    }
+
+    /// `changed` is now for a profile straight out of setup; one handed
+    /// across from the phone keeps the time it was changed there.
+    func save(changed: Date = .now) {
         Self.defaults.set(try? JSONEncoder().encode(self), forKey: Self.key)
+        Self.defaults.set(changed, forKey: Self.changedKey)
     }
 }

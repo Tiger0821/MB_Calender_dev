@@ -6,8 +6,10 @@ import WidgetKit
    widget for the Smart Stack that says what is on and what is next, and the
    reminders before each class.
 
-   It has no setup of its own. The phone hands it the profile (DeviceLink),
-   and until it has, there is nothing to show but a line saying so. */
+   It stands on its own: it has a setup (WatchSetupView), and needs no
+   phone to show the day. Where there is a phone that has been set up, the
+   phone hands its profile across (DeviceLink), and whichever of the two was
+   changed last is the one the watch shows. */
 @main
 struct TimetableWatchApp: App {
     @Environment(\.scenePhase) private var scenePhase
@@ -23,16 +25,22 @@ struct TimetableWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WatchDayView(profile: profile)
-                .task {
-                    DeviceLink.shared.received = {
-                        Task { @MainActor in
-                            profile = Timetable.profile
-                            await Self.settle()
-                        }
+            WatchDayView(profile: profile) { new in
+                // out of setup on the wrist: keep it, and lay the fortnight out for it
+                new.save()
+                Timetable.profile = new
+                profile = new
+                Task { await Self.settle() }
+            }
+            .task {
+                DeviceLink.shared.received = {
+                    Task { @MainActor in
+                        profile = Timetable.profile
+                        await Self.settle()
                     }
-                    await Self.settle()
                 }
+                await Self.settle()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

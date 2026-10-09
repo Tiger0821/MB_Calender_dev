@@ -626,6 +626,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location is used to show the weather where you are.";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.tigercho.ManageBacTimetable;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -656,6 +657,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location is used to show the weather where you are.";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.tigercho.ManageBacTimetable;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
