@@ -10,10 +10,16 @@ import SwiftUI
 
    It follows the clock, as the phone's does: today until the last bell, and
    after that the next school day, which is then named at the top since it is
-   not the day the watch is showing the time of. */
+   not the day the watch is showing the time of.
+
+   Under the day is the way into setup (WatchSetupView), to change the
+   classes; with no profile yet, it is all there is. */
 struct WatchDayView: View {
     let profile: Profile?
+    /// Called with a profile out of setup.
+    let use: (Profile) -> Void
     @State private var weather = WeatherModel()
+    @State private var settingUp = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -24,11 +30,19 @@ struct WatchDayView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
                         if profile == nil {
-                            Text("Open Timetable on your iPhone to choose your classes.")
-                                .font(.footnote)
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.black.opacity(0.4), in: .rect(cornerRadius: 12))
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Choose your classes to see your day.")
+                                    .font(.footnote)
+                                Button("Choose classes") { settingUp = true }
+                                    .buttonStyle(.borderedProminent)
+                                // a phone that has been set up hands its classes over by itself
+                                Text("Chosen in Timetable on your iPhone, they come across.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.black.opacity(0.4), in: .rect(cornerRadius: 12))
                         } else if snapshot.day.isEmpty {
                             Text("No classes")
                                 .font(.headline)
@@ -59,6 +73,21 @@ struct WatchDayView: View {
                                     .id(item.id)
                             }
                         }
+                        if profile != nil {
+                            Button {
+                                settingUp = true
+                            } label: {
+                                Label("Change classes", systemImage: "slider.horizontal.3")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(.black.opacity(0.38), in: .rect(cornerRadius: 12))
+                                    // the whole tile takes the tap, not only the words on it
+                                    .contentShape(.rect(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 6)
+                        }
                     }
                     .padding(.horizontal, 4)
                 }
@@ -70,6 +99,12 @@ struct WatchDayView: View {
             .background { sky(at: now) }
         }
         .task { await weather.refresh() }
+        .sheet(isPresented: $settingUp) {
+            WatchSetupView(existing: profile) {
+                use($0)
+                settingUp = false
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await weather.refresh() } }
         }

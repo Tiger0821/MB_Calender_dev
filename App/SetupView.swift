@@ -39,17 +39,12 @@ struct SetupView: View {
 
     private var catalog: Catalog { Timetable.catalog(for: draft.form) }
 
-    /// The revision classes that go with what has been picked so far.
-    private var revision: [Catalog.Choice] {
-        catalog.revision.filter { draft.subjects.contains($0.key) }.flatMap(\.value).sorted { $0.subject < $1.subject }
-    }
-
     /// The pages still to come depend on the form, and on what is picked from it.
     private var steps: [Step] {
         var steps: [Step] = [.name, .form]
         guard !draft.form.isEmpty else { return steps }
         steps += catalog.sets.indices.map { .set($0) }
-        if !revision.isEmpty { steps.append(.revision) }
+        if !draft.revision.isEmpty { steps.append(.revision) }
         if !clubs.isEmpty { steps.append(.clubs) }
         return steps
     }
@@ -193,22 +188,22 @@ struct SetupView: View {
                 ForEach(set) { choice in
                     row(choice.name, detail: choice.staff, picked: draft.subjects.contains(choice.subject), tint: Timetable.tint(for: choice.subject)) {
                         let adding = !draft.subjects.contains(choice.subject)
-                        toggle(choice)
+                        draft.toggle(choice)
                         if oneOnly && adding { go(to: step + 1) }
                     }
                 }
                 if oneOnly {
                     row("None of these", detail: nil, picked: set.allSatisfy { !draft.subjects.contains($0.subject) }) {
-                        for choice in set where draft.subjects.contains(choice.subject) { toggle(choice) }
+                        for choice in set where draft.subjects.contains(choice.subject) { draft.toggle(choice) }
                         go(to: step + 1)
                     }
                 }
             }
         case .revision:
             question("Any SL revision?", "Extra classes for what you picked. Leave them off if you don't go.") {
-                ForEach(revision) { choice in
+                ForEach(draft.revision) { choice in
                     row(choice.name, detail: choice.staff, picked: draft.subjects.contains(choice.subject), tint: Timetable.tint(for: choice.subject)) {
-                        toggle(choice)
+                        draft.toggle(choice)
                     }
                 }
             }
@@ -303,24 +298,8 @@ struct SetupView: View {
 
     private func pick(form: String) {
         guard form != draft.form else { return }
-        draft.form = form
-        // what the other form offered may not be on this one's timetable
-        draft.subjects.formIntersection(Timetable.catalog(for: form).choices.map(\.subject))
+        draft.pick(form: form)
         clubs = entries(for: draft)
-    }
-
-    /// Pick a class, dropping any picked ones that are on at the same time;
-    /// or put it back. Revision goes when the class it is for does.
-    private func toggle(_ choice: Catalog.Choice) {
-        if draft.subjects.contains(choice.subject) {
-            draft.subjects.remove(choice.subject)
-        } else {
-            draft.subjects.subtract(choice.clashes)
-            draft.subjects.insert(choice.subject)
-        }
-        for (parent, extras) in catalog.revision where !draft.subjects.contains(parent) {
-            draft.subjects.subtract(extras.map(\.subject))
-        }
     }
 
     /// The club slots on the form's timetable, with whatever the profile already calls them.

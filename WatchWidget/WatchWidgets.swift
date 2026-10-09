@@ -120,7 +120,7 @@ struct NowNextWatchView: View {
                 now(current, until: classEnd(of: current, in: snapshot.day), scale: scale)
                 if let next { line(next, lead: "Next", scale: scale) }
             } else if Timetable.profile == nil {
-                Text("Open Timetable on your iPhone")
+                Text("Open Timetable to choose your classes")
                     .font(.system(size: 13 * scale, weight: .semibold))
             } else if let next, snapshot.isToday {
                 // before the first bell: nearer to it, more is made of it
