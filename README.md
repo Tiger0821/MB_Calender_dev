@@ -258,7 +258,11 @@ differences are deliberate:
 | `TT_ANCHOR`  | `Timetable.anchor`                              |
 | `TT_SOURCE`  | `Timetable.source`                              |
 
-Subject colours are in `Shared/SubjectStyle.swift`.
+Subject colours are in `Shared/SubjectStyle.swift`: a tone to each subject
+(`Tone`), with one value for dark backgrounds and a deeper one for light, and
+picked so that the classes one person has together are not neighbours on the
+colour wheel. The Lock Screen's day and the island are black whatever the
+phone is set to, and take the dark values (`onDark`).
 
 ## Holidays
 
@@ -269,8 +273,21 @@ weekend. The lunar festivals move every year, so add the 2028 dates when that
 calendar is published — after the last entry the countdown simply disappears.
 
 The countdown runs to midnight at the start of the holiday itself (not the
-substitute day off), in the phone's own time zone. The timetable does not know
-about holidays: classes are still shown on a day off.
+substitute day off), in the phone's own time zone.
+
+A weekday off for a holiday has no classes on it (`Holidays.off(on:)`, which
+`Timetable.day(of:)` asks): the widgets, the watch, the class reminders and
+the Lock Screen's day all pass over it to the next school day, and say "No
+class today" where they have room to. On the page the card at the top says
+it, and the evening before, "No class tomorrow"; the day's own list has a
+notice in place of its classes, with a **Show** button that brings the usual
+ones up under it. On the day off itself the page stays on today, and **Today**
+goes back to it, where on a school day it turns over to the next one at the
+last bell.
+
+The picker's ten days are days of the cycle and carry no dates, so to find
+the one a holiday takes out, each is taken for the date it falls on this week
+or next (`Timetable.fortnight`). That day is in red.
 
 ## Weather
 

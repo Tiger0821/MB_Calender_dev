@@ -192,9 +192,11 @@ extension ClassActivityAttributes {
        those does without them, which takes some 300 KB back off it. */
     var affordsMinutes: Bool { blocks.count <= 16 }
 
+    /// Its colour as it goes on black, which the panel and the island are
+    /// whatever the phone is set to.
     func tint(_ block: Block) -> Color {
-        if block.isLesson { return Timetable.tint(for: block.tint) }
-        return block.tint == "Lunch" ? .yellow : .gray
+        if block.isLesson { return Timetable.tone(for: block.tint).onDark }
+        return (block.tint == "Lunch" ? Tone.butter : .slate).onDark
     }
 }
 

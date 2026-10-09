@@ -150,7 +150,11 @@ struct ContentView: View {
             let now = context.date
             let snapshot = Timetable.snapshot(at: now)
             let today = Timetable.cycleDay(of: now)
-            let shown = picked ?? snapshot.day.first?.cycleDay ?? today ?? 0
+            // the day the page is on when left to follow the clock: the one the snapshot has
+            // turned to, except on a weekday off for a holiday, which is today all day — it
+            // has no last bell to turn over at, and its own list is what says there is no class
+            let followed = snapshot.holidayToday != nil ? today : snapshot.day.first?.cycleDay ?? today
+            let shown = picked ?? followed ?? 0
             let daysOff = daysOff(at: now, snapshot: snapshot)
             let phase = weather.current?.phase(at: now)
             let scene = weather.current.map { SkyScene(sky: $0.sky, phase: phase ?? .day, wind: $0.wind) }
@@ -186,7 +190,7 @@ struct ContentView: View {
                         case .now: NowCard(snapshot: snapshot, now: now)
                         case .holiday: HolidayCard(now: now)
                         case .days: DayPicker(picked: $picked, shown: shown, today: today,
-                                               followed: snapshot.day.first?.cycleDay ?? today, daysOff: daysOff)
+                                               followed: followed, daysOff: daysOff)
                         case .timetable:
                             VStack(alignment: .leading, spacing: 6) {
                                 dayHeader(shown, today: today, snapshot: snapshot)
@@ -290,20 +294,32 @@ struct ContentView: View {
             : !snapshot.isToday && snapshot.day.first?.cycleDay == day ? snapshot.dayLabel
             : nil
         let name = Self.weekdays[day % 5]
-        return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(lead == name ? name : lead ?? name)
-                .font(.title3.weight(.bold))
-            Text((lead == nil || lead == name ? "" : name + " · ") + "Week \(day / 5 + 1)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        // the button is set on the middle of the title's line, not on its
+        // baseline: its own text is smaller, and by the baseline it hung low
+        return HStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(lead == name ? name : lead ?? name)
+                    .font(.title3.weight(.bold))
+                Text((lead == nil || lead == name ? "" : name + " · ") + "Week \(day / 5 + 1)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             if picked != nil {
-                Button("Today") {
+                Button {
                     withAnimation(.snappy) { picked = nil }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                        Text("Today")
+                    }
                 }
-                .font(.subheadline.weight(.semibold))
+                .buttonStyle(PillButtonStyle(compact: true))
             }
         }
+        // a row of some height, so the title has room over and under it; and
+        // the same with the button in it or not, so the list does not shift
+        .frame(minHeight: 44)
         .padding(.horizontal, 12)
     }
 }
@@ -710,6 +726,34 @@ struct DayPicker: View {
     }
 }
 
+/* The buttons on a day's card, Today and Show: a pill filled in the text's
+   own colour, with the words cut out of it in the background's, lifted a
+   little off the card and giving under the finger. As tinted text, and then
+   as a pale pill of the tint, Today was first lost against a blue sky and
+   then read as a label; filled, it stands off any sky and looks like what it
+   is. The fill is not quite solid, so some of the sky comes through it. */
+struct PillButtonStyle: ButtonStyle {
+    /// The small one, for the end of a title's line: no taller than the title.
+    var compact = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        // what it takes a touch on reaches this far past what is drawn
+        let reach: CGFloat = compact ? 9 : 5
+        configuration.label
+            .font((compact ? Font.footnote : .subheadline).weight(.semibold))
+            .foregroundStyle(Color(.systemBackground))
+            .padding(.horizontal, compact ? 10 : 14)
+            .frame(minHeight: compact ? 26 : 34)
+            .background(Color.primary.opacity(configuration.isPressed ? 0.5 : 0.7), in: .capsule)
+            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            .padding(reach)
+            .contentShape(.rect)
+            .padding(-reach)
+    }
+}
+
 /* In place of a day's classes when it is off for a national holiday: that
    there are none, which holiday it is, and the date it takes out. Show
    brings the day's usual classes up under it all the same, for looking at
@@ -741,13 +785,8 @@ struct DayOffNotice: View {
                 withAnimation(.snappy) { showsUsual.toggle() }
             } label: {
                 Label(showsUsual ? "Hide" : "Show", systemImage: showsUsual ? "eye.slash" : "eye")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 18)
-                    .frame(minHeight: 38)
-                    .background(.tint.opacity(0.2), in: .capsule)
-                    .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PillButtonStyle())
             .padding(.top, 12)
             .accessibilityLabel(showsUsual ? "Hide the usual classes" : "Show the usual classes")
         }
