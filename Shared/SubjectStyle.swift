@@ -2,25 +2,85 @@ import SwiftUI
 
 /* How each block looks, shared by the app and the widgets so a subject is the
    same colour everywhere. */
+
+/* One colour of the palette: a tone for light backgrounds and a tone for
+   dark ones, each as 0xRRGGBB.
+
+   The subjects were in the system's own colours once, and on the dark page
+   those came out neon — and its green, teal, mint and cyan, three of which
+   one person has on the same day, near enough the same. These are picked for
+   the job instead, the way the timetable apps and the palettes that are good
+   at it go about it: a named tone to a subject, all kept to much the same
+   lightness and strength so none shouts, spaced round the wheel so that no
+   two which meet are neighbours, and each with a deeper tone of its own for
+   light backgrounds, where a pastel does not read as text. */
+struct Tone: Sendable {
+    let light: UInt32
+    let dark: UInt32
+
+    static let vermilion = Tone(light: 0xC34517, dark: 0xF58967)
+    static let amber = Tone(light: 0xA76C01, dark: 0xFDBD69)
+    static let lime = Tone(light: 0x6B8316, dark: 0xC7E18A)
+    static let leaf = Tone(light: 0x0A7E3A, dark: 0x7CCD8E)
+    static let jade = Tone(light: 0x098777, dark: 0x8CE5D3)
+    static let lagoon = Tone(light: 0x00707D, dark: 0x58C3D2)
+    static let powder = Tone(light: 0x2368BD, dark: 0xA9CDFF)
+    static let iris = Tone(light: 0x5550C0, dark: 0x989EF8)
+    static let orchid = Tone(light: 0x8C399E, dark: 0xDDA1EA)
+    static let rose = Tone(light: 0xC33E77, dark: 0xFAA9C4)
+    /// The two that are hardly colours: Guidance, and IB Core and the breaks.
+    static let sand = Tone(light: 0x795D3C, dark: 0xD5B898)
+    static let slate = Tone(light: 0x616A75, dark: 0xAAB2BD)
+    /// Lunch.
+    static let butter = Tone(light: 0x93770E, dark: 0xF6DD90)
+
+    /// The tone for whichever background is up.
+    var color: Color {
+        #if canImport(UIKit) && !os(watchOS)
+        Color(uiColor: UIColor { [light, dark] traits in
+            let hex = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: Self.part(hex, 16), green: Self.part(hex, 8), blue: Self.part(hex, 0), alpha: 1)
+        })
+        #else
+        // the watch is always dark
+        onDark
+        #endif
+    }
+
+    /// The tone for a dark background whatever the phone is set to, for what
+    /// is drawn on black regardless: the Lock Screen's day and the island.
+    var onDark: Color {
+        Color(.sRGB, red: Self.part(dark, 16), green: Self.part(dark, 8), blue: Self.part(dark, 0))
+    }
+
+    private static func part(_ hex: UInt32, _ shift: UInt32) -> Double {
+        Double((hex >> shift) & 0xFF) / 255
+    }
+}
+
 extension Timetable {
     /* Classes that are alternatives to each other share a colour, since
        nobody has two of them; classes one person can have together don't. */
-    static func tint(for subject: String) -> Color {
+    static func tone(for subject: String) -> Tone {
         func any(_ prefixes: String...) -> Bool { prefixes.contains { subject.hasPrefix($0) } }
         return switch subject {
-        case _ where any("DP Chi"): .red
-        case _ where any("DP Eng"): .blue
-        case "Eng Lit": .indigo
-        case _ where any("DP MA"): .orange
-        case _ where any("DP Comp. Sc.", "DP ESS"): .teal
-        case _ where any("DP Chem"): .cyan
-        case _ where any("DP Econ", "DP History", "DP Psych"): .green
-        case _ where any("DP Bus Man", "DP Bio", "DP Physics", "DP V. Arts"): .mint
-        case _ where any("DP TOK"): .purple
-        case core: .gray
-        case let s where s.hasPrefix("G:") || s == "Guidance": .brown
-        default: .pink   // the clubs
+        case _ where any("DP Chi"): .vermilion
+        case _ where any("DP Eng"): .powder
+        case "Eng Lit": .iris
+        case _ where any("DP MA"): .amber
+        case _ where any("DP Comp. Sc.", "DP ESS"): .lagoon
+        case _ where any("DP Chem"): .lime
+        case _ where any("DP Econ", "DP History", "DP Psych"): .leaf
+        case _ where any("DP Bus Man", "DP Bio", "DP Physics", "DP V. Arts"): .jade
+        case _ where any("DP TOK"): .orchid
+        case core: .slate
+        case let s where s.hasPrefix("G:") || s == "Guidance": .sand
+        default: .rose   // the clubs
         }
+    }
+
+    static func tint(for subject: String) -> Color {
+        tone(for: subject).color
     }
 
     /// A name for tight spaces: "G: Weekly Alignment" is "Weekly Alignment".
@@ -36,7 +96,7 @@ extension Segment {
     var tint: Color {
         switch kind {
         case .lessons(let items): Timetable.tint(for: items[0].subject)
-        case .gap(let label): label == "Lunch" ? .yellow : .gray
+        case .gap(let label): (label == "Lunch" ? Tone.butter : .slate).color
         }
     }
 
